@@ -13,13 +13,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.citizenreportai.data.model.ReportCategory
-import com.example.citizenreportai.data.repository.MockReportRepository
+import com.example.citizenreportai.data.repository.ReportRepository
 import com.example.citizenreportai.ui.components.OpenStreetMapComponent
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateReportScreen(
-    repository: MockReportRepository,
+    repository: ReportRepository,
+    userId: String,
     onNavigateBack: () -> Unit
 ) {
     var description by remember { mutableStateOf("") }
@@ -29,6 +31,8 @@ fun CreateReportScreen(
     // variables para ubicación
     var reportLatitude by remember { mutableStateOf<Double?>(null) }
     var reportLongitude by remember { mutableStateOf<Double?>(null) }
+
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -145,14 +149,17 @@ fun CreateReportScreen(
 
                 Button(
                     onClick = {
-                        repository.addReport(
-                            category = selectedCategory,
-                            description = description,
-                            latitude = reportLatitude ?: 0.0,
-                            longitude = reportLongitude ?: 0.0,
-                            photoUrl = null
-                        )
-                        onNavigateBack()
+                        scope.launch {
+                            repository.addReport(
+                                userId = userId,
+                                category = selectedCategory,
+                                description = description,
+                                latitude = reportLatitude ?: 0.0,
+                                longitude = reportLongitude ?: 0.0,
+                                photoUrl = null
+                            )
+                            onNavigateBack()
+                        }
                     },
                     modifier = Modifier
                         .weight(1f)

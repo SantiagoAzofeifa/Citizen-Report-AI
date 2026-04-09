@@ -1,5 +1,6 @@
 package com.example.citizenreportai.data.model
 
+import com.google.gson.annotations.SerializedName
 import java.util.Date
 
 enum class UserRole {
@@ -19,7 +20,7 @@ enum class NotificationType {
 }
 
 data class User(
-    val id: Int,
+    val id: String,
     val firstName: String,
     val lastName: String?,
     val phone: String,
@@ -31,8 +32,8 @@ data class User(
 )
 
 data class Report(
-    val id: Int,
-    val userId: Int?, // Can be null if user was deleted
+    val id: String = "0",
+    val userId: String?, // Gson convertirá el 1 (Int) en "1" (String) automáticamente
     val dateReported: Date,
     val status: ReportStatus,
     val category: ReportCategory,
@@ -43,24 +44,25 @@ data class Report(
 )
 
 data class ReportContent(
-    val reportId: Int,
+    @SerializedName("reportId")
+    val reportId: String?,
     val description: String,
     val closingComment: String?
 )
 
 data class Photo(
-    val id: Int,
-    val reportId: Int,
+    val id: String,
+    @SerializedName("reportId")
+    val reportId: String,
     val photoUrl: String,
     val createdAt: Date
 )
 
 data class Notification(
-    val id: Int,
-    val userId: Int,
+    val id: String,
+    val userId: String,
     val info: String,
     val category: NotificationType,
     val isRead: Boolean,
     val dateSent: Date
 )
-

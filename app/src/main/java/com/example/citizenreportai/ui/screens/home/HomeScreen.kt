@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.citizenreportai.data.model.Report
-import com.example.citizenreportai.data.repository.MockReportRepository
+import com.example.citizenreportai.data.repository.ReportRepository
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -36,10 +36,17 @@ import androidx.core.content.ContextCompat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    repository: MockReportRepository,
-    onNavigateToCreateReport: () -> Unit
+    repository: ReportRepository,
+    onNavigateToCreateReport: () -> Unit,
+    onNavigateToMyReports: () -> Unit,
+    onNavigateToProfile: () -> Unit
 ) {
     val reports by repository.reports.collectAsState(initial = emptyList())
+
+    // Cargar reportes al iniciar
+    LaunchedEffect(Unit) {
+        repository.fetchReports()
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(0) }
@@ -57,19 +64,19 @@ fun HomeScreen(
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    onClick = { 
+                        selectedTab = 1
+                        onNavigateToMyReports()
+                    },
                     icon = { Icon(Icons.AutoMirrored.Filled.ListIcon, contentDescription = "Mis Reportes") },
                     label = { Text("Mis Reportes") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Notifications, contentDescription = "Notificaciones") },
-                    label = { Text("Notificaciones") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
+                    onClick = { 
+                        selectedTab = 2
+                        onNavigateToProfile()
+                    },
                     icon = { Icon(Icons.Default.Person, contentDescription = "Perfil") },
                     label = { Text("Perfil") }
                 )
@@ -90,7 +97,7 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .systemBarsPadding() // Previene cualquier solapamiento con la barra de estado
+                .systemBarsPadding()
         ) {
             // Cabecera superior
             Column(
@@ -138,7 +145,7 @@ fun HomeScreen(
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Search, // Placeholder para filtro si no está en baseline
+                            imageVector = Icons.Default.Search,
                             contentDescription = "Filtro",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -153,12 +160,10 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .clipToBounds() // Obliga a que el mapa no se dibuje fuera de su espacio
+                    .clipToBounds()
             ) {
-                // Componente del mapa
                 ReportsMapComponent(reports = reports)
 
-                // Tarjeta de estadísticas (devuelta a la vista superior original)
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -175,11 +180,11 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        StatItem("127", "Total", MaterialTheme.colorScheme.primary)
+                        StatItem(reports.size.toString(), "Total", MaterialTheme.colorScheme.primary)
                         VerticalDivider(modifier = Modifier.height(40.dp))
-                        StatItem("34", "Pendientes", Color(0xFFF97316)) // Naranja
+                        StatItem(reports.count { it.status.name == "PENDIENTE" }.toString(), "Pendientes", Color(0xFFF97316))
                         VerticalDivider(modifier = Modifier.height(40.dp))
-                        StatItem("93", "Resueltos", Color(0xFF22C55E)) // Verde
+                        StatItem(reports.count { it.status.name == "RESUELTO" }.toString(), "Resueltos", Color(0xFF22C55E))
                     }
                 }
             }
@@ -228,9 +233,8 @@ fun ReportsMapComponent(reports: List<Report>) {
                 setMultiTouchControls(true)
                 controller.setZoom(17.0)
 
-                // Mover al centro por defecto si no hay reportes (por ej. una ciudad)
                 if (reports.isEmpty()) {
-                    controller.setCenter(GeoPoint(40.4168, -3.7038)) // Ejemplo: Madrid
+                    controller.setCenter(GeoPoint(40.4168, -3.7038))
                 }
             }
             mapView
@@ -238,7 +242,6 @@ fun ReportsMapComponent(reports: List<Report>) {
         update = { mapView ->
             mapView.overlays.clear()
 
-            // Añadir marcadores por cada reporte
             reports.forEach { report ->
                 val marker = Marker(mapView)
                 marker.position = GeoPoint(report.latitude, report.longitude)
@@ -247,7 +250,6 @@ fun ReportsMapComponent(reports: List<Report>) {
                 mapView.overlays.add(marker)
             }
 
-            // Centrar mapa de acuerdo a los reportes si existen
             if (reports.isNotEmpty()) {
                 val lastReport = reports.last()
                 mapView.controller.setCenter(GeoPoint(lastReport.latitude, lastReport.longitude))
