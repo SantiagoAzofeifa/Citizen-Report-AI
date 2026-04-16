@@ -1,31 +1,37 @@
-// Edita C:/Users/santi/OneDrive/Documentos/UNA/Moviles/Citizen-Report-AI/app/src/main/java/com/example/citizenreportai/data/remote/RetrofitInstance.kt
-
 package com.example.citizenreportai.data.remote
 
+import com.example.citizenreportai.BuildConfig
 import com.google.gson.*
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.lang.reflect.Type
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.Date
 
 object RetrofitInstance {
-    private const val BASE_URL = "https://69d6f5779c5ebb0918c6d9a2.mockapi.io/"
+    private val BASE_URL = BuildConfig.API_BASE_URL
 
-    // Adaptador personalizado para manejar fechas en segundos (Long) o String (ISO)
-    private val dateDeserializer = JsonDeserializer { json, _, _ ->
-        if (json.isJsonPrimitive && json.asJsonPrimitive.isNumber) {
-            Date(json.asLong * 1000) // MockAPI suele enviar segundos, Java necesita milisegundos
+    // Acepta epoch en segundos/milisegundos y fechas ISO (con/sin ms, con offset)
+    private val dateDeserializer = JsonDeserializer<Date> { json, _, _ ->
+        val primitive = json.asJsonPrimitive
+        if (primitive.isNumber) {
+            val raw = primitive.asLong
+            val millis = if (raw < 100_000_000_000L) raw * 1000 else raw
+            Date(millis)
         } else {
-            // Intentar parsear como string ISO
-            try {
-                val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
-                format.parse(json.asString)
-            } catch (e: Exception) {
-                Date() // Fallback a fecha actual en caso de error
-            }
+            parseDate(primitive.asString) ?: Date()
         }
+    }
+
+    private fun parseDate(raw: String): Date? {
+        return runCatching { Date.from(Instant.parse(raw)) }
+            .recoverCatching { Date.from(OffsetDateTime.parse(raw).toInstant()) }
+            .recoverCatching { Date.from(LocalDateTime.parse(raw).toInstant(ZoneOffset.UTC)) }
+            .getOrNull()
     }
 
     private val gson = GsonBuilder()
