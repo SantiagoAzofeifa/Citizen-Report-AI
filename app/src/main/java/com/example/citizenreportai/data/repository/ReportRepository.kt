@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 interface ReportRepository {
     val reports: StateFlow<List<Report>>
     suspend fun fetchReports()
+    suspend fun fetchReportById(id: String): Report?
     suspend fun addReport(
         userId: String,
         category: ReportCategory,

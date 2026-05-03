@@ -20,6 +20,16 @@ class RealReportRepository : ReportRepository {
         }
     }
 
+    override suspend fun fetchReportById(id: String): Report? {
+        return try {
+            // Try fetching from API; fall back to cached list if already loaded
+            RetrofitInstance.api.getReportById(id)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            _reports.value.find { it.id == id }
+        }
+    }
+
     override suspend fun addReport(
         userId: String,
         category: ReportCategory,

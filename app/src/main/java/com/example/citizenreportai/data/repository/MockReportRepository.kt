@@ -41,6 +41,10 @@ class MockReportRepository : ReportRepository {
         // No-op para mock
     }
 
+    override suspend fun fetchReportById(id: String): Report? {
+        return _reports.value.find { it.id == id }
+    }
+
     override suspend fun addReport(
         userId: String,
         category: ReportCategory,
