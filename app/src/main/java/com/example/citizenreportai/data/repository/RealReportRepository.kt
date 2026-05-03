@@ -47,7 +47,7 @@ class RealReportRepository : ReportRepository {
         photoUrl: String?
     ) {
         // Optimistic local id so the report appears in MyReports immediately
-        val tempId = "local_${System.currentTimeMillis()}"
+        val tempId = "local_${java.util.UUID.randomUUID()}"
         val optimisticReport = Report(
             id = tempId,
             userId = userId,
