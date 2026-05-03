@@ -17,6 +17,9 @@ interface ApiService {
     @GET("reports")
     suspend fun getReports(): List<Report>
 
+    @GET("reports/{id}")
+    suspend fun getReportById(@Path("id") id: String): Report
+
     @POST("reports")
     suspend fun createReport(@Body report: Report): Report
 }

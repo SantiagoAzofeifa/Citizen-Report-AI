@@ -246,7 +246,7 @@ fun ReportsMapComponent(reports: List<Report>) {
                 val marker = Marker(mapView)
                 marker.position = GeoPoint(report.latitude, report.longitude)
                 marker.title = report.category.name
-                marker.snippet = report.content.description
+                marker.snippet = report.content?.description
                 mapView.overlays.add(marker)
             }
 

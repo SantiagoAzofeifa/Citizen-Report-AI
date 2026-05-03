@@ -28,7 +28,7 @@ data class Report(
     @SerializedName("category") val category: ReportCategory,
     @SerializedName("latitude") val latitude: Double,
     @SerializedName("longitude") val longitude: Double,
-    @SerializedName("content") val content: ReportContent,
+    @SerializedName("content") val content: ReportContent?,
     @SerializedName("photos") val photos: List<Photo>
 )
 
