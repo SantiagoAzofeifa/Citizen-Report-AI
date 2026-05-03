@@ -38,7 +38,7 @@ class MockReportRepository : ReportRepository {
     override val reports: StateFlow<List<Report>> = _reports
 
     override suspend fun fetchReports() {
-        // No-op para mock, ya está en memoria
+        // No-op para mock
     }
 
     override suspend fun addReport(
@@ -49,7 +49,7 @@ class MockReportRepository : ReportRepository {
         longitude: Double,
         photoUrl: String?
     ) {
-        val maxId = _reports.value.mapNotNull { it.id.toIntOrNull() }.maxOfOrNull { it } ?: 0
+        val maxId = _reports.value.mapNotNull { it.id?.toIntOrNull() }.maxOfOrNull { it } ?: 0
         val newId = (maxId + 1).toString()
         
         val newReport = Report(

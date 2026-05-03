@@ -29,8 +29,9 @@ class RealReportRepository : ReportRepository {
         photoUrl: String?
     ) {
         try {
+            // Creamos el reporte con Date() actual
             val newReport = Report(
-                id = "0",
+                id = null,
                 userId = userId,
                 dateReported = Date(),
                 status = ReportStatus.PENDIENTE,
@@ -38,7 +39,9 @@ class RealReportRepository : ReportRepository {
                 latitude = latitude,
                 longitude = longitude,
                 content = ReportContent(reportId = null, description = description, closingComment = null),
-                photos = photoUrl?.let { listOf(Photo(id = "0", reportId = "0", photoUrl = it, createdAt = Date())) } ?: emptyList()
+                photos = photoUrl?.let { 
+                    listOf(Photo(id = null, reportId = null, photoUrl = it, createdAt = Date()))
+                } ?: emptyList()
             )
             val createdReport = RetrofitInstance.api.createReport(newReport)
             _reports.value = _reports.value + createdReport
