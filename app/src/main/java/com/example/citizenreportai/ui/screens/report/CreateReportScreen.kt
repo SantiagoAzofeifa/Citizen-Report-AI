@@ -251,7 +251,7 @@ fun CreateReportScreen(
                         .height(56.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = if (photoUri != null)
-                        OutlinedButtonDefaults.outlinedButtonColors(
+                        ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.primary
                         )
                     else
