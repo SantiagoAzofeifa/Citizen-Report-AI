@@ -2,17 +2,22 @@ package com.example.citizenreportai.ui.screens.reports
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.SubcomposeAsyncImage
 import com.example.citizenreportai.data.model.Report
 import com.example.citizenreportai.data.model.ReportStatus
 import com.example.citizenreportai.data.repository.ReportRepository
@@ -226,12 +231,37 @@ private fun ReportDetailContent(report: Report, modifier: Modifier = Modifier) {
         if (report.photos.isNotEmpty()) {
             DetailSection(title = "Fotos (${report.photos.size})") {
                 report.photos.forEach { photo ->
-                    Text(
-                        text = photo.photoUrl,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(vertical = 2.dp)
+                    SubcomposeAsyncImage(
+                        model = photo.photoUrl,
+                        contentDescription = "Foto del reporte",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                        loading = {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                            }
+                        },
+                        error = {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.BrokenImage,
+                                    contentDescription = "No se pudo cargar la imagen",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                            }
+                        }
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }

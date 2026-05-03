@@ -11,18 +11,26 @@ class RealReportRepository : ReportRepository {
     private val _reports = MutableStateFlow<List<Report>>(emptyList())
     override val reports: StateFlow<List<Report>> = _reports
 
+    // Reports added locally but not yet confirmed by the server (use a temp id prefix)
+    private val pendingLocalIds = mutableSetOf<String>()
+
     override suspend fun fetchReports() {
         try {
             val response = RetrofitInstance.api.getReports()
-            _reports.value = response
+            // Keep locally-added reports that the server doesn't know about yet
+            val pendingReports = _reports.value.filter { it.id != null && it.id in pendingLocalIds }
+            _reports.value = response + pendingReports
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
     override suspend fun fetchReportById(id: String): Report? {
+        // If it's a pending local report, return it from the cache without hitting the network
+        if (id in pendingLocalIds) {
+            return _reports.value.find { it.id == id }
+        }
         return try {
-            // Try fetching from API; fall back to cached list if already loaded
             RetrofitInstance.api.getReportById(id)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -38,8 +46,25 @@ class RealReportRepository : ReportRepository {
         longitude: Double,
         photoUrl: String?
     ) {
+        // Optimistic local id so the report appears in MyReports immediately
+        val tempId = "local_${java.util.UUID.randomUUID()}"
+        val optimisticReport = Report(
+            id = tempId,
+            userId = userId,
+            dateReported = Date(),
+            status = ReportStatus.PENDIENTE,
+            category = category,
+            latitude = latitude,
+            longitude = longitude,
+            content = ReportContent(reportId = tempId, description = description, closingComment = null),
+            photos = photoUrl?.let {
+                listOf(Photo(id = null, reportId = tempId, photoUrl = it, createdAt = Date()))
+            } ?: emptyList()
+        )
+        pendingLocalIds.add(tempId)
+        _reports.value = _reports.value + optimisticReport
+
         try {
-            // Creamos el reporte con Date() actual
             val newReport = Report(
                 id = null,
                 userId = userId,
@@ -49,14 +74,17 @@ class RealReportRepository : ReportRepository {
                 latitude = latitude,
                 longitude = longitude,
                 content = ReportContent(reportId = null, description = description, closingComment = null),
-                photos = photoUrl?.let { 
+                photos = photoUrl?.let {
                     listOf(Photo(id = null, reportId = null, photoUrl = it, createdAt = Date()))
                 } ?: emptyList()
             )
             val createdReport = RetrofitInstance.api.createReport(newReport)
-            _reports.value = _reports.value + createdReport
+            // Replace the optimistic entry with the server-confirmed report
+            pendingLocalIds.remove(tempId)
+            _reports.value = _reports.value.map { if (it.id == tempId) createdReport else it }
         } catch (e: Exception) {
             e.printStackTrace()
+            // Keep the optimistic report so it still shows in MyReports
         }
     }
 }
