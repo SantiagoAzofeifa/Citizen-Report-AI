@@ -31,7 +31,17 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.drawable.BitmapDrawable
 import androidx.core.content.ContextCompat
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -225,37 +235,164 @@ fun ReportsMapComponent(reports: List<Report>) {
         }
     }
 
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = { ctx ->
-            val mapView = MapView(ctx).apply {
-                setTileSource(TileSourceFactory.MAPNIK)
-                setMultiTouchControls(true)
-                controller.setZoom(17.0)
+    var selectedReport by remember { mutableStateOf<Report?>(null) }
 
-                if (reports.isEmpty()) {
-                    controller.setCenter(GeoPoint(40.4168, -3.7038))
+    Box(modifier = Modifier.fillMaxSize()) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                val mapView = MapView(ctx).apply {
+                    setTileSource(TileSourceFactory.MAPNIK)
+                    setMultiTouchControls(true)
+                    controller.setZoom(17.0)
+
+                    if (reports.isEmpty()) {
+                        controller.setCenter(GeoPoint(40.4168, -3.7038))
+                    }
+                }
+
+                // Si el usuario toca el mapa general, cerramos la tarjeta
+                mapView.setOnClickListener {
+                    selectedReport = null
+                }
+
+                mapView
+            },
+            update = { mapView ->
+                mapView.overlays.clear()
+
+                // Crear un Bitmap en caché para no recrearlo por cada reporte
+                val markerBitmap = Bitmap.createBitmap(70, 90, Bitmap.Config.ARGB_8888).apply {
+                    val canvas = Canvas(this)
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+                    // Color principal del marcador (Rojo profesional)
+                    val pinColor = android.graphics.Color.parseColor("#E63946")
+                    val shadowColor = android.graphics.Color.parseColor("#33000000")
+
+                    // Sombra de la punta
+                    paint.color = shadowColor
+                    canvas.drawOval(25f, 75f, 45f, 85f, paint)
+
+                    // Cuerpo del marcador (Teardrop)
+                    paint.color = pinColor
+                    val path = Path().apply {
+                        moveTo(35f, 80f) // Punta inferior
+                        cubicTo(35f, 80f, 5f, 45f, 5f, 30f)
+                        cubicTo(5f, 10f, 20f, 5f, 35f, 5f)
+                        cubicTo(50f, 5f, 65f, 10f, 65f, 30f)
+                        cubicTo(65f, 45f, 35f, 80f, 35f, 80f)
+                        close()
+                    }
+                    canvas.drawPath(path, paint)
+
+                    // Círculo blanco interior para contraste
+                    paint.color = android.graphics.Color.WHITE
+                    canvas.drawCircle(35f, 30f, 12f, paint)
+                }
+
+                val customIcon = BitmapDrawable(mapView.context.resources, markerBitmap)
+
+                reports.forEach { report ->
+                    val marker = Marker(mapView)
+                    marker.position = GeoPoint(report.latitude, report.longitude)
+                    marker.icon = customIcon
+                    // Ajustar el ancla para que la punta apunte correctamente a la coordenada
+                    marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+
+                    // Al hacer click, mostramos nuestro componente en Jetpack Compose
+                    // y evitamos que Osmdroid muestre su burbuja gris anticuada
+                    marker.setOnMarkerClickListener { _, _ ->
+                        selectedReport = report
+                        mapView.controller.animateTo(GeoPoint(report.latitude, report.longitude))
+                        true // true significa que consumimos el evento
+                    }
+                    mapView.overlays.add(marker)
+                }
+
+                if (reports.isNotEmpty() && selectedReport == null) {
+                    val lastReport = reports.last()
+                    mapView.controller.setCenter(GeoPoint(lastReport.latitude, lastReport.longitude))
+                }
+
+                mapView.invalidate()
+            }
+        )
+
+        // Tarjeta flotante moderna encima del mapa (Jetpack Compose puro)
+        AnimatedVisibility(
+            visible = selectedReport != null,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            selectedReport?.let { report ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = report.category.name,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            IconButton(
+                                onClick = { selectedReport = null },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        report.content?.description?.let { desc ->
+                            Text(
+                                text = desc,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val statusColor = when (report.status.name) {
+                            "PENDIENTE" -> Color(0xFFF97316)
+                            "EN_REVISION" -> Color(0xFF3B82F6)
+                            "RESUELTO" -> Color(0xFF22C55E)
+                            "RECHAZADO" -> Color(0xFFEF4444)
+                            else -> MaterialTheme.colorScheme.outline
+                        }
+
+                        Surface(
+                            color = statusColor.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = report.status.name,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = statusColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
-            mapView
-        },
-        update = { mapView ->
-            mapView.overlays.clear()
-
-            reports.forEach { report ->
-                val marker = Marker(mapView)
-                marker.position = GeoPoint(report.latitude, report.longitude)
-                marker.title = report.category.name
-                marker.snippet = report.content?.description
-                mapView.overlays.add(marker)
-            }
-
-            if (reports.isNotEmpty()) {
-                val lastReport = reports.last()
-                mapView.controller.setCenter(GeoPoint(lastReport.latitude, lastReport.longitude))
-            }
-
-            mapView.invalidate()
         }
-    )
+    }
 }
