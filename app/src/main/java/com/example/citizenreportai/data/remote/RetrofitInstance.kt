@@ -6,36 +6,40 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
-import java.util.Date
+import java.text.SimpleDateFormat
+import java.util.*
 
 object RetrofitInstance {
     private val BASE_URL = BuildConfig.API_BASE_URL
 
-    // Acepta epoch en segundos/milisegundos y fechas ISO (con/sin ms, con offset)
-    private val dateDeserializer = JsonDeserializer<Date> { json, _, _ ->
-        val primitive = json.asJsonPrimitive
-        if (primitive.isNumber) {
-            val raw = primitive.asLong
-            val millis = if (raw < 100_000_000_000L) raw * 1000 else raw
-            Date(millis)
-        } else {
-            parseDate(primitive.asString) ?: Date()
+    private fun getIsoFormat(): SimpleDateFormat {
+        return SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
         }
     }
 
-    private fun parseDate(raw: String): Date? {
-        return runCatching { Date.from(Instant.parse(raw)) }
-            .recoverCatching { Date.from(OffsetDateTime.parse(raw).toInstant()) }
-            .recoverCatching { Date.from(LocalDateTime.parse(raw).toInstant(ZoneOffset.UTC)) }
-            .getOrNull()
+    private val dateAdapter = object : JsonDeserializer<Date>, JsonSerializer<Date> {
+        override fun deserialize(json: JsonElement, typeOfT: java.lang.reflect.Type, context: JsonDeserializationContext): Date {
+            return try {
+                val raw = json.asString
+                getIsoFormat().parse(raw) ?: Date()
+            } catch (e: Exception) {
+                try {
+                    val timestamp = json.asLong
+                    Date(if (timestamp < 100_000_000_000L) timestamp * 1000 else timestamp)
+                } catch (ex: Exception) {
+                    Date()
+                }
+            }
+        }
+
+        override fun serialize(src: Date, typeOfSrc: java.lang.reflect.Type, context: JsonSerializationContext): JsonElement {
+            return JsonPrimitive(getIsoFormat().format(src))
+        }
     }
 
     private val gson = GsonBuilder()
-        .registerTypeAdapter(Date::class.java, dateDeserializer)
+        .registerTypeAdapter(Date::class.java, dateAdapter)
         .create()
 
     private val logging = HttpLoggingInterceptor().apply {

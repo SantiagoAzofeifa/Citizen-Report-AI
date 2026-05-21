@@ -3,66 +3,53 @@ package com.example.citizenreportai.data.model
 import com.google.gson.annotations.SerializedName
 import java.util.Date
 
-enum class UserRole {
-    ADMIN, USER, FUNCIONARIO
-}
-
-enum class ReportStatus {
-    PENDIENTE, EN_REVISION, PROGRAMADO, RESUELTO, RECHAZADO
-}
-
-enum class ReportCategory {
-    BACHE, ALUMBRADO, BASURA, SEGURIDAD, PARQUES, OTROS
-}
-
-enum class NotificationType {
-    ALERTA, ACTUALIZACION, INFO
-}
+enum class UserRole { ADMIN, USER, FUNCIONARIO }
+enum class ReportStatus { PENDIENTE, EN_REVISION, PROGRAMADO, RESUELTO, RECHAZADO }
+enum class ReportCategory { BACHE, ALUMBRADO, BASURA, SEGURIDAD, PARQUES, OTROS }
+enum class NotificationType { ALERTA, ACTUALIZACION, INFO }
 
 data class User(
-    val id: String,
-    val firstName: String,
-    val lastName: String?,
-    val phone: String,
-    val email: String,
-    val role: UserRole,
-    val identifier: String, // CI or other ID
-    val createdAt: Date,
-    val updatedAt: Date
+    @SerializedName("id") val id: String,
+    @SerializedName("firstName") val firstName: String,
+    @SerializedName("lastName") val lastName: String?,
+    @SerializedName("phone") val phone: String,
+    @SerializedName("email") val email: String,
+    @SerializedName("role") val role: UserRole,
+    @SerializedName("identifier") val identifier: String,
+    @SerializedName("createdAt") val createdAt: Date,
+    @SerializedName("updatedAt") val updatedAt: Date
 )
 
 data class Report(
-    val id: String = "0",
-    val userId: String?, // Gson convertirá el 1 (Int) en "1" (String) automáticamente
-    val dateReported: Date,
-    val status: ReportStatus,
-    val category: ReportCategory,
-    val latitude: Double,
-    val longitude: Double,
-    val content: ReportContent,
-    val photos: List<Photo>
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("userId") val userId: String?,
+    @SerializedName("dateReported") val dateReported: Date,
+    @SerializedName("status") val status: ReportStatus,
+    @SerializedName("category") val category: ReportCategory,
+    @SerializedName("latitude") val latitude: Double,
+    @SerializedName("longitude") val longitude: Double,
+    @SerializedName("content") val content: ReportContent?,
+    @SerializedName("photos") val photos: List<Photo>
 )
 
 data class ReportContent(
-    @SerializedName("reportId")
-    val reportId: String?,
-    val description: String,
-    val closingComment: String?
+    @SerializedName("reportId") val reportId: String? = null,
+    @SerializedName("description") val description: String,
+    @SerializedName("closingComment") val closingComment: String? = null
 )
 
 data class Photo(
-    val id: String,
-    @SerializedName("reportId")
-    val reportId: String,
-    val photoUrl: String,
-    val createdAt: Date
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("reportId") val reportId: String? = null,
+    @SerializedName("photoUrl") val photoUrl: String,
+    @SerializedName("createdAt") val createdAt: Date
 )
 
 data class Notification(
-    val id: String,
-    val userId: String,
-    val info: String,
-    val category: NotificationType,
-    val isRead: Boolean,
-    val dateSent: Date
+    @SerializedName("id") val id: String,
+    @SerializedName("userId") val userId: String,
+    @SerializedName("info") val info: String,
+    @SerializedName("category") val category: NotificationType,
+    @SerializedName("isRead") val isRead: Boolean,
+    @SerializedName("dateSent") val dateSent: Date
 )
