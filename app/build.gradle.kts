@@ -1,6 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -14,8 +16,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Emulador Android -> host local
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://miau-backend.onrender.com/\"")
     }
 
     buildTypes {
@@ -25,6 +26,7 @@ android {
         }
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -34,9 +36,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
     }
 }
 
@@ -52,14 +51,20 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Mapas (OSMdroid)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
-
-    // Ubicación GPS
     implementation("com.google.android.gms:play-services-location:21.2.0")
 
     // Networking
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Image loading
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
+    implementation("com.google.firebase:firebase-analytics")
 }
