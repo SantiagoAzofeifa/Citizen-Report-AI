@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "562041765342",
+    "project_id": "moviles-fotos-backend",
+    "storage_bucket": "moviles-fotos-backend.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:562041765342:android:ca8971865031b7dc5f314f",
+        "android_client_info": {
+          "package_name": "com.example.citizenreportai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDA6v3VQjxXUHpfyL2YB7r4yLOWTKo92IQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

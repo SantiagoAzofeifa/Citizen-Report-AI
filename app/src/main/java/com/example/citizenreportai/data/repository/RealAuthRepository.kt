@@ -11,8 +11,10 @@ class RealAuthRepository : AuthRepository {
 
     override suspend fun login(email: String, identifier: String): Boolean {
         return try {
+            // Buscamos en el backend real de Supabase/Spring Boot
             val users = RetrofitInstance.api.getUsers()
             val user = users.find { it.email.equals(email, ignoreCase = true) && it.identifier == identifier }
+
             if (user != null) {
                 _currentUser.value = user
                 true
