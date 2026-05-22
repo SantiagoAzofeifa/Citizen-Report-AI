@@ -270,20 +270,6 @@ private fun ReportDetailContent(report: Report, modifier: Modifier = Modifier) {
                             ) {
                                 CircularProgressIndicator(modifier = Modifier.size(32.dp))
                             }
-
-                            private fun resolvePhotoUrl(photoUrl: String): String {
-                                val trimmedUrl = photoUrl.trim()
-                                if (trimmedUrl.startsWith("http://", ignoreCase = true) ||
-                                    trimmedUrl.startsWith("https://", ignoreCase = true) ||
-                                    trimmedUrl.startsWith("content://", ignoreCase = true) ||
-                                    trimmedUrl.startsWith("file://", ignoreCase = true) ||
-                                    trimmedUrl.startsWith("data:", ignoreCase = true)
-                                ) {
-                                    return trimmedUrl
-                                }
-                                val baseUrl = BuildConfig.API_BASE_URL.trimEnd('/')
-                                return "$baseUrl/${trimmedUrl.trimStart('/')}"
-                            }
                         },
                         error = {
                             Box(
@@ -304,6 +290,26 @@ private fun ReportDetailContent(report: Report, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+private fun resolvePhotoUrl(photoUrl: String): String {
+    val trimmedUrl = photoUrl.trim()
+    if (trimmedUrl.isBlank()) {
+        return trimmedUrl
+    }
+
+    val normalizedUrl = trimmedUrl.replace("\\", "/")
+    if (normalizedUrl.startsWith("http://", ignoreCase = true) ||
+        normalizedUrl.startsWith("https://", ignoreCase = true) ||
+        normalizedUrl.startsWith("content://", ignoreCase = true) ||
+        normalizedUrl.startsWith("file://", ignoreCase = true) ||
+        normalizedUrl.startsWith("data:", ignoreCase = true)
+    ) {
+        return normalizedUrl
+    }
+
+    val baseUrl = BuildConfig.API_BASE_URL.trimEnd('/')
+    return "$baseUrl/${normalizedUrl.trimStart('/')}"
 }
 
 @Composable
