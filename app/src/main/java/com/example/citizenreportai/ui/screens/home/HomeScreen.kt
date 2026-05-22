@@ -42,6 +42,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import com.google.android.gms.location.LocationServices
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
@@ -215,6 +216,7 @@ fun StatItem(value: String, label: String, color: Color) {
 @Composable
 fun ReportsMapComponent(reports: List<Report>) {
     val context = LocalContext.current
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     LaunchedEffect(Unit) {
         Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
@@ -271,15 +273,34 @@ fun ReportsMapComponent(reports: List<Report>) {
                     mapView.overlays.add(locationOverlay)
 
                     if (!hasCenteredOnUser) {
-                        locationOverlay.runOnFirstFix {
-                            val location = locationOverlay.myLocation
-                            if (location != null) {
-                                mapView.post {
-                                    mapView.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+                        val centerFromOverlay = {
+                            locationOverlay.runOnFirstFix {
+                                val location = locationOverlay.myLocation
+                                if (location != null) {
+                                    mapView.post {
+                                        mapView.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+                                        hasCenteredOnUser = true
+                                    }
                                 }
-                                hasCenteredOnUser = true
                             }
                         }
+
+                        fusedLocationClient.lastLocation
+                            .addOnSuccessListener { location ->
+                                if (location != null && !hasCenteredOnUser) {
+                                    mapView.post {
+                                        mapView.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+                                        hasCenteredOnUser = true
+                                    }
+                                } else if (!hasCenteredOnUser) {
+                                    centerFromOverlay()
+                                }
+                            }
+                            .addOnFailureListener {
+                                if (!hasCenteredOnUser) {
+                                    centerFromOverlay()
+                                }
+                            }
                     }
                 }
 
