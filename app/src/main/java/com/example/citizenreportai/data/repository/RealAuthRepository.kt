@@ -2,29 +2,50 @@ package com.example.citizenreportai.data.repository
 
 import com.example.citizenreportai.data.model.User
 import com.example.citizenreportai.data.remote.RetrofitInstance
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import retrofit2.HttpException
+import java.io.IOException
 
 class RealAuthRepository : AuthRepository {
     private val _currentUser = MutableStateFlow<User?>(null)
     override val currentUser: StateFlow<User?> = _currentUser
 
-    override suspend fun login(email: String, identifier: String): Boolean {
-        return try {
-            // Buscamos en el backend real de Supabase/Spring Boot
-            val users = RetrofitInstance.api.getUsers()
-            val user = users.find { it.email.equals(email, ignoreCase = true) && it.identifier == identifier }
+    override suspend fun login(email: String, identifier: String): LoginResult {
+        val normalizedEmail = email.trim()
+        val normalizedIdentifier = identifier.trim()
+        val maxAttempts = 2
+        var attempt = 0
+        var backoffMillis = 2000L
 
-            if (user != null) {
-                _currentUser.value = user
-                true
-            } else {
-                false
+        while (attempt < maxAttempts) {
+            try {
+                // Buscamos en el backend real de Supabase/Spring Boot
+                val users = RetrofitInstance.api.getUsers()
+                val user = users.find {
+                    it.email.equals(normalizedEmail, ignoreCase = true) &&
+                        it.identifier == normalizedIdentifier
+                }
+
+                return if (user != null) {
+                    _currentUser.value = user
+                    LoginResult.Success
+                } else {
+                    LoginResult.InvalidCredentials
+                }
+            } catch (e: Exception) {
+                val shouldRetry = e is IOException || (e is HttpException && e.code() >= 500)
+                if (!shouldRetry || attempt == maxAttempts - 1) {
+                    e.printStackTrace()
+                    return LoginResult.NetworkError
+                }
+                delay(backoffMillis)
+                backoffMillis = (backoffMillis * 2).coerceAtMost(10000L)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
+            attempt += 1
         }
+        return LoginResult.NetworkError
     }
 
     override fun logout() {

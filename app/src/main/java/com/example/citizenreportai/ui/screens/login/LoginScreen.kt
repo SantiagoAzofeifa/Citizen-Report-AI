@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import com.example.citizenreportai.data.repository.AuthRepository
+import com.example.citizenreportai.data.repository.LoginResult
 import kotlinx.coroutines.launch
 
 @Composable
@@ -131,12 +132,13 @@ fun LoginScreen(
                 scope.launch {
                     isLoading = true
                     errorMessage = null
-                    val success = authRepository.login(email, identifier)
+                    val result = authRepository.login(email, identifier)
                     isLoading = false
-                    if (success) {
-                        onLoginSuccess()
-                    } else {
-                        errorMessage = "Credenciales incorrectas"
+                    when (result) {
+                        LoginResult.Success -> onLoginSuccess()
+                        LoginResult.InvalidCredentials -> errorMessage = "Credenciales incorrectas"
+                        LoginResult.NetworkError -> errorMessage =
+                            "No se pudo conectar con el servidor. Intenta de nuevo en unos segundos."
                     }
                 }
             },

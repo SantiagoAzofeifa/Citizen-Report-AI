@@ -8,6 +8,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 object RetrofitInstance {
     private val BASE_URL = BuildConfig.API_BASE_URL
@@ -48,6 +49,10 @@ object RetrofitInstance {
 
     private val client = OkHttpClient.Builder()
         .addInterceptor(logging)
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(60, TimeUnit.SECONDS)
         .build()
 
     private val retrofit by lazy {
