@@ -40,13 +40,24 @@ class RealAuthRepository : AuthRepository {
                     LoginResult.InvalidCredentials
                 }
             } catch (e: Exception) {
-                val shouldRetry = e is IOException || (e is HttpException && (e.code() >= 500 || e.code() == 429))
+                val httpException = e as? HttpException
+                val statusCode = httpException?.code()
+                val shouldRetry = e is IOException || statusCode == 429 || (statusCode != null && statusCode >= 500)
                 lastError = e
                 if (!shouldRetry || attempt == TOTAL_LOGIN_ATTEMPTS) {
                     break
                 }
-                delay(backoffMillis)
-                backoffMillis = (backoffMillis * 2).coerceAtMost(MAX_BACKOFF_MILLIS)
+                val retryAfterMillis = httpException
+                    ?.response()
+                    ?.headers()
+                    ?.get("Retry-After")
+                    ?.toLongOrNull()
+                    ?.let { it * 1000L }
+                val delayMillis = retryAfterMillis ?: backoffMillis
+                delay(delayMillis)
+                if (retryAfterMillis == null) {
+                    backoffMillis = (backoffMillis * 2).coerceAtMost(MAX_BACKOFF_MILLIS)
+                }
             }
         }
         lastError?.printStackTrace()
