@@ -255,36 +255,51 @@ private fun ReportDetailContent(report: Report, modifier: Modifier = Modifier) {
             DetailSection(title = "Fotos (${report.photos.size})") {
                 report.photos.forEach { photo ->
                     val resolvedUrl = resolvePhotoUrl(photo.photoUrl)
-                    SubcomposeAsyncImage(
-                        model = resolvedUrl,
-                        contentDescription = "Foto del reporte",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
-                            .clip(RoundedCornerShape(12.dp)),
-                        loading = {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                            }
-                        },
-                        error = {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.BrokenImage,
-                                    contentDescription = "No se pudo cargar la imagen",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                            }
+                    val imageModifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                    if (resolvedUrl.isBlank()) {
+                        Box(
+                            modifier = imageModifier,
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.BrokenImage,
+                                contentDescription = "No se pudo cargar la imagen",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(48.dp)
+                            )
                         }
-                    )
+                    } else {
+                        SubcomposeAsyncImage(
+                            model = resolvedUrl,
+                            contentDescription = "Foto del reporte",
+                            contentScale = ContentScale.Crop,
+                            modifier = imageModifier,
+                            loading = {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                                }
+                            },
+                            error = {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.BrokenImage,
+                                        contentDescription = "No se pudo cargar la imagen",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                }
+                            }
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
