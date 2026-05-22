@@ -72,8 +72,8 @@ class RealAuthRepository : AuthRepository {
                 val retryAfterMillis = retryAfterHeader?.toLongOrNull()
                     ?.takeIf { it > 0 }
                     ?.let { seconds ->
-                        if (seconds > MAX_BACKOFF_MILLIS / 1000L) {
-                            MAX_BACKOFF_MILLIS
+                        if (seconds > Long.MAX_VALUE / 1000L) {
+                            Long.MAX_VALUE
                         } else {
                             seconds * 1000L
                         }
@@ -91,8 +91,7 @@ class RealAuthRepository : AuthRepository {
                             null
                         }
                     }
-                val boundedRetryAfterMillis = retryAfterMillis?.coerceAtMost(MAX_BACKOFF_MILLIS)
-                val delayMillis = boundedRetryAfterMillis ?: backoffMillis
+                val delayMillis = retryAfterMillis?.coerceAtMost(MAX_BACKOFF_MILLIS) ?: backoffMillis
                 delay(delayMillis)
                 if (retryAfterMillis == null) {
                     backoffMillis = (backoffMillis * 2).coerceAtMost(MAX_BACKOFF_MILLIS)
