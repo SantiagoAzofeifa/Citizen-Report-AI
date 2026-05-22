@@ -88,7 +88,8 @@ fun AppNavigation() {
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
-                }
+                },
+                userRole = currentUser?.role
             )
         }
         composable(Screen.CreateReport.route) {
