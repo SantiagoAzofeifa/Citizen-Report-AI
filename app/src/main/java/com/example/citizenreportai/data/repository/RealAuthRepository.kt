@@ -6,11 +6,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import retrofit2.HttpException
+import java.time.Duration
+import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.io.IOException
 
 class RealAuthRepository : AuthRepository {
     private companion object {
-        const val TOTAL_LOGIN_ATTEMPTS = 2
+        const val MAX_LOGIN_ATTEMPTS = 2
         const val INITIAL_BACKOFF_MILLIS = 2000L
         const val MAX_BACKOFF_MILLIS = 10000L
     }
@@ -24,7 +28,7 @@ class RealAuthRepository : AuthRepository {
         var backoffMillis = INITIAL_BACKOFF_MILLIS
         var lastError: Exception? = null
 
-        for (attempt in 1..TOTAL_LOGIN_ATTEMPTS) {
+        for (attempt in 1..MAX_LOGIN_ATTEMPTS) {
             try {
                 // Buscamos en el backend real de Supabase/Spring Boot
                 val users = RetrofitInstance.api.getUsers()
@@ -44,15 +48,20 @@ class RealAuthRepository : AuthRepository {
                 val statusCode = httpException?.code()
                 val shouldRetry = e is IOException || statusCode == 429 || (statusCode != null && statusCode >= 500)
                 lastError = e
-                if (!shouldRetry || attempt == TOTAL_LOGIN_ATTEMPTS) {
+                if (!shouldRetry || attempt == MAX_LOGIN_ATTEMPTS) {
                     break
                 }
-                val retryAfterMillis = httpException
-                    ?.response()
-                    ?.headers()
-                    ?.get("Retry-After")
-                    ?.toLongOrNull()
-                    ?.let { it * 1000L }
+                val retryAfterHeader = httpException?.response()?.headers()?.get("Retry-After")
+                val retryAfterMillis = retryAfterHeader?.toLongOrNull()?.let { it * 1000L }
+                    ?: retryAfterHeader?.let {
+                        try {
+                            val retryAfterDate = ZonedDateTime.parse(it, DateTimeFormatter.RFC_1123_DATE_TIME)
+                            val delayMillis = Duration.between(Instant.now(), retryAfterDate.toInstant()).toMillis()
+                            delayMillis.takeIf { millis -> millis > 0 }
+                        } catch (parseError: Exception) {
+                            null
+                        }
+                    }
                 val delayMillis = retryAfterMillis ?: backoffMillis
                 delay(delayMillis)
                 if (retryAfterMillis == null) {
