@@ -42,6 +42,10 @@ fun LoginScreen(
         label = "loginButtonScale"
     )
 
+    LaunchedEffect(Unit) {
+        authRepository.warmUp()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
