@@ -72,7 +72,7 @@ class RealAuthRepository : AuthRepository {
                 val retryAfterMillis = retryAfterHeader?.toLongOrNull()
                     ?.takeIf { it > 0 }
                     ?.let { seconds ->
-                        if (seconds > Long.MAX_VALUE / 1000L) {
+                        if (seconds > MAX_BACKOFF_MILLIS / 1000L) {
                             MAX_BACKOFF_MILLIS
                         } else {
                             seconds * 1000L
@@ -82,7 +82,7 @@ class RealAuthRepository : AuthRepository {
                         try {
                             val retryAfterDate = ZonedDateTime.parse(it, DateTimeFormatter.RFC_1123_DATE_TIME)
                             val duration = Duration.between(Instant.now(), retryAfterDate.toInstant())
-                            if (duration.isNegative || duration.isZero) {
+                            if (duration.isNegative) {
                                 null
                             } else {
                                 duration.toMillis()
@@ -91,7 +91,8 @@ class RealAuthRepository : AuthRepository {
                             null
                         }
                     }
-                val delayMillis = retryAfterMillis?.coerceAtMost(MAX_BACKOFF_MILLIS) ?: backoffMillis
+                val delayMillis = retryAfterMillis?.coerceAtMost(MAX_BACKOFF_MILLIS)
+                    ?: backoffMillis.coerceAtMost(MAX_BACKOFF_MILLIS)
                 delay(delayMillis)
                 if (retryAfterMillis == null) {
                     backoffMillis = (backoffMillis * 2).coerceAtMost(MAX_BACKOFF_MILLIS)
