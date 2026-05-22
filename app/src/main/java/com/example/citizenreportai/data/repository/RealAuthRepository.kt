@@ -9,14 +9,20 @@ import retrofit2.HttpException
 import java.io.IOException
 
 class RealAuthRepository : AuthRepository {
+    private companion object {
+        const val TOTAL_LOGIN_ATTEMPTS = 2
+        const val INITIAL_BACKOFF_MILLIS = 2000L
+        const val MAX_BACKOFF_MILLIS = 10000L
+    }
+
     private val _currentUser = MutableStateFlow<User?>(null)
     override val currentUser: StateFlow<User?> = _currentUser
 
     override suspend fun login(email: String, identifier: String): LoginResult {
         val normalizedEmail = email.trim()
         val normalizedIdentifier = identifier.trim()
-        val totalAttempts = 2
-        var backoffMillis = 2000L
+        val totalAttempts = TOTAL_LOGIN_ATTEMPTS
+        var backoffMillis = INITIAL_BACKOFF_MILLIS
         var lastError: Exception? = null
 
         for (attempt in 1..totalAttempts) {
@@ -41,7 +47,7 @@ class RealAuthRepository : AuthRepository {
                     break
                 }
                 delay(backoffMillis)
-                backoffMillis = (backoffMillis * 2).coerceAtMost(10000L)
+                backoffMillis = (backoffMillis * 2).coerceAtMost(MAX_BACKOFF_MILLIS)
             }
         }
         lastError?.printStackTrace()
