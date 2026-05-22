@@ -69,16 +69,14 @@ class RealAuthRepository : AuthRepository {
                     break
                 }
                 val retryAfterHeader = httpException?.response()?.headers()?.get("Retry-After")
-                val retryAfterMillis = retryAfterHeader?.toLongOrNull()
-                    ?.takeIf { it > 0 }
-                    ?.let { seconds ->
-                        if (seconds > MAX_BACKOFF_MILLIS / 1000L) {
-                            MAX_BACKOFF_MILLIS
-                        } else {
-                            seconds * 1000L
-                        }
+                val retryAfterSeconds = retryAfterHeader?.toLongOrNull()
+                val retryAfterMillis = retryAfterSeconds?.let { seconds ->
+                    when {
+                        seconds <= 0 -> null
+                        seconds > MAX_BACKOFF_MILLIS / 1000L -> MAX_BACKOFF_MILLIS
+                        else -> seconds * 1000L
                     }
-                    ?: retryAfterHeader?.let {
+                } ?: retryAfterHeader?.let {
                         try {
                             val retryAfterDate = ZonedDateTime.parse(it, DateTimeFormatter.RFC_1123_DATE_TIME)
                             val duration = Duration.between(Instant.now(), retryAfterDate.toInstant())
