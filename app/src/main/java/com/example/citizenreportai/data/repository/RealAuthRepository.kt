@@ -6,6 +6,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import retrofit2.HttpException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.time.Duration
 import java.time.Instant
 import java.time.ZonedDateTime
@@ -14,7 +17,7 @@ import java.io.IOException
 
 class RealAuthRepository : AuthRepository {
     private companion object {
-        const val MAX_LOGIN_ATTEMPTS = 2
+        const val LOGIN_ATTEMPTS = 2
         const val INITIAL_BACKOFF_MILLIS = 2000L
         const val MAX_BACKOFF_MILLIS = 10000L
     }
@@ -28,7 +31,7 @@ class RealAuthRepository : AuthRepository {
         var backoffMillis = INITIAL_BACKOFF_MILLIS
         var lastError: Exception? = null
 
-        for (attempt in 1..MAX_LOGIN_ATTEMPTS) {
+        for (attempt in 1..LOGIN_ATTEMPTS) {
             try {
                 // Buscamos en el backend real de Supabase/Spring Boot
                 val users = RetrofitInstance.api.getUsers()
@@ -46,9 +49,12 @@ class RealAuthRepository : AuthRepository {
             } catch (e: Exception) {
                 val httpException = e as? HttpException
                 val statusCode = httpException?.code()
-                val shouldRetry = e is IOException || statusCode == 429 || (statusCode != null && statusCode >= 500)
+                val retryableIOException = e is UnknownHostException ||
+                    e is SocketTimeoutException ||
+                    e is ConnectException
+                val shouldRetry = retryableIOException || statusCode == 429 || (statusCode != null && statusCode >= 500)
                 lastError = e
-                if (!shouldRetry || attempt == MAX_LOGIN_ATTEMPTS) {
+                if (!shouldRetry || attempt == LOGIN_ATTEMPTS) {
                     break
                 }
                 val retryAfterHeader = httpException?.response()?.headers()?.get("Retry-After")
@@ -62,7 +68,8 @@ class RealAuthRepository : AuthRepository {
                             null
                         }
                     }
-                val delayMillis = retryAfterMillis ?: backoffMillis
+                val boundedRetryAfterMillis = retryAfterMillis?.coerceAtMost(MAX_BACKOFF_MILLIS)
+                val delayMillis = boundedRetryAfterMillis ?: backoffMillis
                 delay(delayMillis)
                 if (retryAfterMillis == null) {
                     backoffMillis = (backoffMillis * 2).coerceAtMost(MAX_BACKOFF_MILLIS)
