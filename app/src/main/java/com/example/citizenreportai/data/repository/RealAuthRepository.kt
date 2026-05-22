@@ -24,13 +24,10 @@ class RealAuthRepository : AuthRepository {
         const val MAX_BACKOFF_MILLIS = 4000L
         const val LOGIN_REQUEST_TIMEOUT_MILLIS = 8000L
         const val WARMUP_TIMEOUT_MILLIS = 4000L
-        const val CACHED_USERS_TTL_MILLIS = 120_000L
     }
 
     private val _currentUser = MutableStateFlow<User?>(null)
     override val currentUser: StateFlow<User?> = _currentUser
-    private var cachedUsers: List<User>? = null
-    private var cachedUsersAt: Long = 0L
 
     override suspend fun login(email: String, identifier: String): LoginResult {
         val normalizedEmail = email.trim()
@@ -38,25 +35,12 @@ class RealAuthRepository : AuthRepository {
         var backoffMillis = INITIAL_BACKOFF_MILLIS
         var lastError: Exception? = null
 
-        val cached = cachedUsersIfFresh()
-        if (cached != null) {
-            val cachedUser = cached.find {
-                it.email.equals(normalizedEmail, ignoreCase = true) &&
-                    it.identifier == normalizedIdentifier
-            }
-            if (cachedUser != null) {
-                _currentUser.value = cachedUser
-                return LoginResult.Success
-            }
-        }
-
         for (attempt in 1..LOGIN_ATTEMPTS) {
             try {
                 // Buscamos en el backend real de Supabase/Spring Boot
                 val users = withTimeout(LOGIN_REQUEST_TIMEOUT_MILLIS) {
                     RetrofitInstance.api.getUsers()
                 }
-                cacheUsers(users)
                 val user = users.find {
                     it.email.equals(normalizedEmail, ignoreCase = true) &&
                         it.identifier == normalizedIdentifier
@@ -85,12 +69,18 @@ class RealAuthRepository : AuthRepository {
                     break
                 }
                 val retryAfterHeader = httpException?.response()?.headers()?.get("Retry-After")
-                val retryAfterMillis = retryAfterHeader?.toLongOrNull()?.let { it * 1000L }
+                val retryAfterMillis = retryAfterHeader?.toLongOrNull()
+                    ?.takeIf { it > 0 }
+                    ?.let { seconds -> runCatching { Math.multiplyExact(seconds, 1000L) }.getOrNull() }
                     ?: retryAfterHeader?.let {
                         try {
                             val retryAfterDate = ZonedDateTime.parse(it, DateTimeFormatter.RFC_1123_DATE_TIME)
-                            val delayMillis = Duration.between(Instant.now(), retryAfterDate.toInstant()).toMillis()
-                            delayMillis.takeIf { millis -> millis > 0 }
+                            val duration = Duration.between(Instant.now(), retryAfterDate.toInstant())
+                            if (duration.isNegative || duration.isZero) {
+                                null
+                            } else {
+                                duration.toMillis()
+                            }
                         } catch (parseError: Exception) {
                             null
                         }
@@ -109,10 +99,9 @@ class RealAuthRepository : AuthRepository {
 
     override suspend fun warmUp() {
         try {
-            val users = withTimeout(WARMUP_TIMEOUT_MILLIS) {
+            withTimeout(WARMUP_TIMEOUT_MILLIS) {
                 RetrofitInstance.api.getUsers()
             }
-            cacheUsers(users)
         } catch (e: Exception) {
             if (e is CancellationException && e !is TimeoutCancellationException) {
                 throw e
@@ -122,16 +111,5 @@ class RealAuthRepository : AuthRepository {
 
     override fun logout() {
         _currentUser.value = null
-    }
-
-    private fun cacheUsers(users: List<User>) {
-        cachedUsers = users
-        cachedUsersAt = System.currentTimeMillis()
-    }
-
-    private fun cachedUsersIfFresh(): List<User>? {
-        val users = cachedUsers ?: return null
-        val ageMillis = System.currentTimeMillis() - cachedUsersAt
-        return if (ageMillis <= CACHED_USERS_TTL_MILLIS) users else null
     }
 }
