@@ -273,14 +273,20 @@ fun ReportsMapComponent(reports: List<Report>) {
                     mapView.overlays.add(locationOverlay)
 
                     if (!hasCenteredOnUser) {
+                        fun maybeCenter(latitude: Double, longitude: Double) {
+                            mapView.post {
+                                if (!hasCenteredOnUser) {
+                                    mapView.controller.animateTo(GeoPoint(latitude, longitude))
+                                    hasCenteredOnUser = true
+                                }
+                            }
+                        }
+
                         fun centerFromOverlay() {
                             locationOverlay.runOnFirstFix {
                                 val location = locationOverlay.myLocation
                                 if (location != null) {
-                                    mapView.post {
-                                        mapView.controller.animateTo(GeoPoint(location.latitude, location.longitude))
-                                        hasCenteredOnUser = true
-                                    }
+                                    maybeCenter(location.latitude, location.longitude)
                                 }
                             }
                         }
@@ -296,24 +302,27 @@ fun ReportsMapComponent(reports: List<Report>) {
                                 ) == PackageManager.PERMISSION_GRANTED
 
                         if (hasRuntimeLocationPermission) {
-                            fusedLocationClient.lastLocation
-                                .addOnSuccessListener { location ->
-                                    if (location != null && !hasCenteredOnUser) {
-                                        mapView.post {
-                                            mapView.controller.animateTo(GeoPoint(location.latitude, location.longitude))
-                                            hasCenteredOnUser = true
+                                try {
+                                    fusedLocationClient.lastLocation
+                                        .addOnSuccessListener { location ->
+                                            if (location != null) {
+                                                maybeCenter(location.latitude, location.longitude)
+                                            } else if (!hasCenteredOnUser) {
+                                                centerFromOverlay()
+                                            }
                                         }
-                                    } else if (!hasCenteredOnUser) {
-                                        centerFromOverlay()
-                                    }
-                                }
-                                .addOnFailureListener {
+                                        .addOnFailureListener {
+                                            if (!hasCenteredOnUser) {
+                                                centerFromOverlay()
+                                            }
+                                        }
+                                } catch (securityException: SecurityException) {
                                     if (!hasCenteredOnUser) {
                                         centerFromOverlay()
                                     }
                                 }
                         } else {
-                            centerFromOverlay()
+                                centerFromOverlay()
                         }
                     }
                 }
