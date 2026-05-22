@@ -15,11 +15,11 @@ class RealAuthRepository : AuthRepository {
     override suspend fun login(email: String, identifier: String): LoginResult {
         val normalizedEmail = email.trim()
         val normalizedIdentifier = identifier.trim()
-        val maxAttempts = 2
-        var attempt = 0
+        val totalAttempts = 2
         var backoffMillis = 2000L
+        var lastError: Exception? = null
 
-        while (attempt < maxAttempts) {
+        for (attempt in 1..totalAttempts) {
             try {
                 // Buscamos en el backend real de Supabase/Spring Boot
                 val users = RetrofitInstance.api.getUsers()
@@ -36,15 +36,15 @@ class RealAuthRepository : AuthRepository {
                 }
             } catch (e: Exception) {
                 val shouldRetry = e is IOException || (e is HttpException && e.code() >= 500)
-                if (!shouldRetry || attempt == maxAttempts - 1) {
-                    e.printStackTrace()
-                    return LoginResult.NetworkError
+                lastError = e
+                if (!shouldRetry || attempt == totalAttempts) {
+                    break
                 }
                 delay(backoffMillis)
                 backoffMillis = (backoffMillis * 2).coerceAtMost(10000L)
             }
-            attempt += 1
         }
+        lastError?.printStackTrace()
         return LoginResult.NetworkError
     }
 
