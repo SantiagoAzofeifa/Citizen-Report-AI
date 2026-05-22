@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.SubcomposeAsyncImage
-import com.example.citizenreportai.BuildConfig
 import com.example.citizenreportai.data.model.Report
 import com.example.citizenreportai.data.model.ReportStatus
 import com.example.citizenreportai.data.repository.ReportRepository
@@ -254,9 +253,8 @@ private fun ReportDetailContent(report: Report, modifier: Modifier = Modifier) {
         if (report.photos.isNotEmpty()) {
             DetailSection(title = "Fotos (${report.photos.size})") {
                 report.photos.forEach { photo ->
-                    val resolvedUrl = resolvePhotoUrl(photo.photoUrl)
                     SubcomposeAsyncImage(
-                        model = resolvedUrl,
+                        model = photo.photoUrl,
                         contentDescription = "Foto del reporte",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -391,18 +389,4 @@ private fun DetailSection(title: String, content: @Composable ColumnScope.() -> 
         )
         content()
     }
-}
-
-private fun resolvePhotoUrl(photoUrl: String): String {
-    val trimmedUrl = photoUrl.trim()
-    if (trimmedUrl.startsWith("http://", ignoreCase = true) ||
-        trimmedUrl.startsWith("https://", ignoreCase = true) ||
-        trimmedUrl.startsWith("content://", ignoreCase = true) ||
-        trimmedUrl.startsWith("file://", ignoreCase = true) ||
-        trimmedUrl.startsWith("data:", ignoreCase = true)
-    ) {
-        return trimmedUrl
-    }
-    val baseUrl = BuildConfig.API_BASE_URL.trimEnd('/')
-    return "$baseUrl/${trimmedUrl.trimStart('/')}"
 }

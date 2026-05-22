@@ -1,5 +1,6 @@
 package com.example.citizenreportai.data.remote
 
+import com.example.citizenreportai.data.model.CreateUserRequest
 import com.example.citizenreportai.data.model.Report
 import com.example.citizenreportai.data.model.User
 import retrofit2.http.Body
@@ -13,6 +14,9 @@ interface ApiService {
 
     @GET("users/{id}")
     suspend fun getUserById(@Path("id") id: String): User
+
+    @POST("users")
+    suspend fun createUser(@Body request: CreateUserRequest): User
 
     @GET("reports")
     suspend fun getReports(): List<Report>

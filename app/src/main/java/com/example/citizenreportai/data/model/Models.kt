@@ -20,6 +20,15 @@ data class User(
     @SerializedName("updatedAt") val updatedAt: Date
 )
 
+data class CreateUserRequest(
+    @SerializedName("primerNombre") val primerNombre: String,
+    @SerializedName("apellidos") val apellidos: String?,
+    @SerializedName("telefono") val telefono: String,
+    @SerializedName("email") val email: String,
+    @SerializedName("identificador") val identificador: String,
+    @SerializedName("rolId") val rolId: Int
+)
+
 data class Report(
     @SerializedName("id") val id: String? = null,
     @SerializedName("userId") val userId: String?,
