@@ -73,7 +73,7 @@ class RealAuthRepository : AuthRepository {
                     ?.takeIf { it > 0 }
                     ?.let { seconds ->
                         if (seconds > Long.MAX_VALUE / 1000L) {
-                            Long.MAX_VALUE
+                            MAX_BACKOFF_MILLIS
                         } else {
                             seconds * 1000L
                         }
