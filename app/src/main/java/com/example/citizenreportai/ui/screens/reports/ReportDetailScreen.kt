@@ -310,7 +310,7 @@ private fun ReportDetailContent(report: Report, modifier: Modifier = Modifier) {
 private fun resolvePhotoUrl(photoUrl: String): String {
     val trimmedUrl = photoUrl.trim()
     if (trimmedUrl.isBlank()) {
-        return trimmedUrl
+        return ""
     }
 
     val normalizedUrl = trimmedUrl.replace("\\", "/")
