@@ -129,7 +129,7 @@ fun OpenStreetMapComponent(
                         mapView.overlays.add(locationOverlay)
 
                         if (!hasCenteredOnUser) {
-                            val centerFromOverlay = {
+                            fun centerFromOverlay() {
                                 locationOverlay.runOnFirstFix {
                                     val location = locationOverlay.myLocation
                                     if (location != null) {
@@ -142,23 +142,37 @@ fun OpenStreetMapComponent(
                                 }
                             }
 
-                            fusedLocationClient.lastLocation
-                                .addOnSuccessListener { location ->
-                                    if (location != null && !hasCenteredOnUser) {
-                                        mapView.post {
-                                            mapView.controller.animateTo(GeoPoint(location.latitude, location.longitude))
-                                            onLocationDetermined(location.latitude, location.longitude)
-                                            hasCenteredOnUser = true
+                            val hasRuntimeLocationPermission =
+                                ContextCompat.checkSelfPermission(
+                                    ctx,
+                                    Manifest.permission.ACCESS_FINE_LOCATION
+                                ) == PackageManager.PERMISSION_GRANTED ||
+                                    ContextCompat.checkSelfPermission(
+                                        ctx,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    ) == PackageManager.PERMISSION_GRANTED
+
+                            if (hasRuntimeLocationPermission) {
+                                fusedLocationClient.lastLocation
+                                    .addOnSuccessListener { location ->
+                                        if (location != null && !hasCenteredOnUser) {
+                                            mapView.post {
+                                                mapView.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+                                                onLocationDetermined(location.latitude, location.longitude)
+                                                hasCenteredOnUser = true
+                                            }
+                                        } else if (!hasCenteredOnUser) {
+                                            centerFromOverlay()
                                         }
-                                    } else if (!hasCenteredOnUser) {
-                                        centerFromOverlay()
                                     }
-                                }
-                                .addOnFailureListener {
-                                    if (!hasCenteredOnUser) {
-                                        centerFromOverlay()
+                                    .addOnFailureListener {
+                                        if (!hasCenteredOnUser) {
+                                            centerFromOverlay()
+                                        }
                                     }
-                                }
+                            } else {
+                                centerFromOverlay()
+                            }
                         }
 
                         mapView.addMapListener(object : MapListener {
