@@ -6,8 +6,9 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.List as ListIcon
@@ -42,6 +43,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import kotlinx.coroutines.launch
 import com.example.citizenreportai.data.model.UserRole
 import com.google.android.gms.location.LocationServices
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
@@ -57,6 +59,7 @@ fun HomeScreen(
     userRole: UserRole?
 ) {
     val reports by repository.reports.collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
 
     // Cargar reportes al iniciar
     LaunchedEffect(Unit) {
@@ -152,7 +155,11 @@ fun HomeScreen(
                         }
                         
                         IconButton(
-                            onClick = { repository.fetchReports() },
+                            onClick = { 
+                                scope.launch {
+                                    repository.fetchReports()
+                                }
+                            },
                             modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refrescar", tint = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -165,26 +172,30 @@ fun HomeScreen(
             }
 
             // Tarjeta de Resumen en la parte superior (Stats)
-            Card(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
                     .padding(top = 100.dp)
-                    .align(Alignment.TopCenter),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    .align(Alignment.TopCenter)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    StatItem(reports.size.toString(), "Total", MaterialTheme.colorScheme.primary)
-                    StatItem(reports.count { it.status.name == "PENDIENTE" }.toString(), "Pendientes", Color(0xFFF97316))
-                    StatItem(reports.count { it.status.name == "RESUELTO" }.toString(), "Resueltos", Color(0xFF22C55E))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        StatItem(reports.size.toString(), "Total", MaterialTheme.colorScheme.primary)
+                        StatItem(reports.count { it.status.name == "PENDIENTE" }.toString(), "Pendientes", Color(0xFFF97316))
+                        StatItem(reports.count { it.status.name == "RESUELTO" }.toString(), "Resueltos", Color(0xFF22C55E))
+                    }
                 }
             }
         }
