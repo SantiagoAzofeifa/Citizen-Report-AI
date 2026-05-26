@@ -7,7 +7,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -18,10 +20,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
@@ -86,11 +90,11 @@ fun CreateReportScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = "Nuevo Reporte",
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.ExtraBold
                     )
                 },
                 navigationIcon = {
@@ -98,7 +102,7 @@ fun CreateReportScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
@@ -108,9 +112,17 @@ fun CreateReportScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            Text(
+                text = "Detalles del Reporte",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
             // Dropdown de Categoría estilo Material 3
             ExposedDropdownMenuBox(
                 expanded = expanded,
@@ -125,10 +137,10 @@ fun CreateReportScreen(
                     modifier = Modifier
                         .menuAnchor()
                         .fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                     )
                 )
                 ExposedDropdownMenu(
@@ -150,13 +162,14 @@ fun CreateReportScreen(
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("Descripción del problema (Opcional)") },
+                label = { Text("Descripción del problema") },
+                placeholder = { Text("Describe brevemente lo que sucede...") },
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                shape = RoundedCornerShape(12.dp),
+                minLines = 4,
+                shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                 )
             )
 
@@ -165,13 +178,9 @@ fun CreateReportScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(160.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(12.dp)
-                        )
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .shadow(4.dp, RoundedCornerShape(20.dp))
                 ) {
                     AsyncImage(
                         model = photoUri,
@@ -182,55 +191,21 @@ fun CreateReportScreen(
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp)
+                            .padding(12.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(12.dp),
+                        shadowElevation = 4.dp
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                text = "Foto agregada",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.padding(6.dp).size(20.dp),
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
                     }
                 }
-            }
-
-            // Mapa de Ubicación con OSM
-            Text(
-                text = "Indique la ubicación exacta en el mapa:",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f) // Para que el mapa ocupe gran parte del espacio
-            ) {
-                OpenStreetMapComponent(
-                    onLocationDetermined = { lat, lon ->
-                        reportLatitude = lat
-                        reportLongitude = lon
-                    }
-                )
-            }
-
-            // Fila de botones finales
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            } else {
+                // Placeholder o botón de foto grande
                 OutlinedButton(
                     onClick = {
                         if (!hasCameraPermission) {
@@ -246,49 +221,70 @@ fun CreateReportScreen(
                             takePictureLauncher.launch(uri)
                         }
                     },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = if (photoUri != null)
-                        ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    else
-                        ButtonDefaults.outlinedButtonColors()
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = "Foto", modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (photoUri != null) "Cambiar foto" else "Foto")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Text("Añadir Foto", style = MaterialTheme.typography.labelLarge)
+                    }
                 }
+            }
 
-                Button(
-                    onClick = {
-                        scope.launch {
-                            repository.addReport(
-                                userId = userId,
-                                category = selectedCategory,
-                                description = description,
-                                latitude = reportLatitude ?: 0.0,
-                                longitude = reportLongitude ?: 0.0,
-                                photoUrl = photoUri?.toString()
-                            )
-                            onNavigateBack()
-                        }
-                    },
+            // Mapa de Ubicación
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Ubicación del incidente",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = description.isNotBlank() && reportLatitude != null
+                        .fillMaxWidth()
+                        .height(250.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar", modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Enviar")
+                    OpenStreetMapComponent(
+                        onLocationDetermined = { lat, lon ->
+                            reportLatitude = lat
+                            reportLongitude = lon
+                        }
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    scope.launch {
+                        repository.addReport(
+                            userId = userId,
+                            category = selectedCategory,
+                            description = description,
+                            latitude = reportLatitude ?: 0.0,
+                            longitude = reportLongitude ?: 0.0,
+                            photoUrl = photoUri?.toString()
+                        )
+                        onNavigateBack()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                shape = RoundedCornerShape(18.dp),
+                enabled = description.isNotBlank() && reportLatitude != null,
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("Enviar Reporte", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

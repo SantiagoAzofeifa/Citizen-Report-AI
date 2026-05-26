@@ -10,15 +10,22 @@ enum class NotificationType { ALERTA, ACTUALIZACION, INFO }
 
 data class User(
     @SerializedName("id") val id: String,
-    @SerializedName("firstName") val firstName: String,
-    @SerializedName("lastName") val lastName: String?,
-    @SerializedName("phone") val phone: String,
+    @SerializedName("primerNombre") val firstName: String,
+    @SerializedName("apellidos") val lastName: String?,
+    @SerializedName("telefono") val phone: String,
     @SerializedName("email") val email: String,
-    @SerializedName("role") val role: UserRole,
-    @SerializedName("identifier") val identifier: String,
+    @SerializedName("rolId") val roleId: Int?,
+    @SerializedName("identificador") val identifier: String,
     @SerializedName("createdAt") val createdAt: Date,
     @SerializedName("updatedAt") val updatedAt: Date
-)
+) {
+    val role: UserRole
+        get() = when (roleId) {
+            1 -> UserRole.ADMIN
+            3 -> UserRole.FUNCIONARIO
+            else -> UserRole.USER
+        }
+}
 
 data class CreateUserRequest(
     @SerializedName("primerNombre") val primerNombre: String,

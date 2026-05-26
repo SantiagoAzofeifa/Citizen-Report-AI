@@ -24,6 +24,34 @@ import com.example.citizenreportai.data.repository.CreateUserResult
 import com.example.citizenreportai.data.repository.LoginResult
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
+import com.example.citizenreportai.data.repository.AuthRepository
+import com.example.citizenreportai.data.repository.CreateUserResult
+import com.example.citizenreportai.data.repository.LoginResult
+import kotlinx.coroutines.launch
+
 @Composable
 fun LoginScreen(
     authRepository: AuthRepository,
@@ -60,133 +88,169 @@ fun LoginScreen(
         authRepository.warmUp()
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Logo / Title area
-        Surface(
-            modifier = Modifier.size(80.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            shadowElevation = 8.dp
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = "CR",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.Black
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        MaterialTheme.colorScheme.surface
+                    )
                 )
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 32.dp, vertical = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Logo / Title area
+            Surface(
+                modifier = Modifier.size(100.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.primary,
+                shadowElevation = 12.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "CR",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Citizen Report AI",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Reporta y mejora tu ciudad hoy",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Iniciar sesión") }
+            Text(
+                text = "Citizen Report AI",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface
             )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Crear usuario") }
-            )
-        }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        when (selectedTab) {
-            0 -> LoginForm(
-                email = loginEmail,
-                onEmailChange = { loginEmail = it },
-                identifier = loginIdentifier,
-                onIdentifierChange = { loginIdentifier = it },
-                isLoading = loginIsLoading,
-                errorMessage = loginErrorMessage,
-                infoMessage = loginInfoMessage,
-                onSubmit = {
-                    scope.launch {
-                        loginIsLoading = true
-                        loginErrorMessage = null
-                        loginInfoMessage = null
-                        val result = authRepository.login(loginEmail, loginIdentifier)
-                        loginIsLoading = false
-                        when (result) {
-                            LoginResult.Success -> onLoginSuccess()
-                            LoginResult.InvalidCredentials -> loginErrorMessage = "Credenciales incorrectas"
-                            LoginResult.NetworkError -> loginErrorMessage =
-                                "No se pudo conectar con el servidor. Intenta de nuevo en unos segundos."
-                        }
-                    }
-                },
-                buttonScale = buttonScale,
-                interactionSource = interactionSource
+            Text(
+                text = "Reporta y mejora tu ciudad hoy",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             )
-            else -> CreateUserForm(
-                firstName = firstName,
-                onFirstNameChange = { firstName = it },
-                lastName = lastName,
-                onLastNameChange = { lastName = it },
-                phone = phone,
-                onPhoneChange = { phone = it },
-                email = registerEmail,
-                onEmailChange = { registerEmail = it },
-                identifier = registerIdentifier,
-                onIdentifierChange = { registerIdentifier = it },
-                isLoading = registerIsLoading,
-                errorMessage = registerErrorMessage,
-                onSubmit = {
-                    scope.launch {
-                        registerIsLoading = true
-                        registerErrorMessage = null
-                        val result = authRepository.createUser(
-                            firstName = firstName,
-                            lastName = lastName,
-                            phone = phone,
-                            email = registerEmail,
-                            identifier = registerIdentifier
-                        )
-                        registerIsLoading = false
-                        when (result) {
-                            CreateUserResult.Success -> {
-                                loginEmail = registerEmail
-                                loginIdentifier = registerIdentifier
-                                loginInfoMessage = "Usuario creado. Inicia sesión."
-                                selectedTab = 0
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = Color.Transparent,
+                        divider = {},
+                        indicator = { tabPositions ->
+                            if (selectedTab < tabPositions.size) {
+                                TabRowDefaults.SecondaryIndicator(
+                                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
-                            CreateUserResult.AlreadyExists ->
-                                registerErrorMessage = "El usuario ya existe."
-                            CreateUserResult.InvalidData ->
-                                registerErrorMessage = "Datos inválidos. Revisa los campos."
-                            CreateUserResult.NetworkError ->
-                                registerErrorMessage = "No se pudo crear el usuario. Intenta nuevamente."
                         }
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text("Entrar", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text("Registro", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    when (selectedTab) {
+                        0 -> LoginForm(
+                            email = loginEmail,
+                            onEmailChange = { loginEmail = it },
+                            identifier = loginIdentifier,
+                            onIdentifierChange = { loginIdentifier = it },
+                            isLoading = loginIsLoading,
+                            errorMessage = loginErrorMessage,
+                            infoMessage = loginInfoMessage,
+                            onSubmit = {
+                                scope.launch {
+                                    loginIsLoading = true
+                                    loginErrorMessage = null
+                                    loginInfoMessage = null
+                                    val result = authRepository.login(loginEmail, loginIdentifier)
+                                    loginIsLoading = false
+                                    when (result) {
+                                        LoginResult.Success -> onLoginSuccess()
+                                        LoginResult.InvalidCredentials -> loginErrorMessage = "Credenciales incorrectas"
+                                        LoginResult.NetworkError -> loginErrorMessage =
+                                            "No se pudo conectar con el servidor."
+                                    }
+                                }
+                            },
+                            buttonScale = buttonScale,
+                            interactionSource = interactionSource
+                        )
+                        else -> CreateUserForm(
+                            firstName = firstName,
+                            onFirstNameChange = { firstName = it },
+                            lastName = lastName,
+                            onLastNameChange = { lastName = it },
+                            phone = phone,
+                            onPhoneChange = { phone = it },
+                            email = registerEmail,
+                            onEmailChange = { registerEmail = it },
+                            identifier = registerIdentifier,
+                            onIdentifierChange = { registerIdentifier = it },
+                            isLoading = registerIsLoading,
+                            errorMessage = registerErrorMessage,
+                            onSubmit = {
+                                scope.launch {
+                                    registerIsLoading = true
+                                    registerErrorMessage = null
+                                    val result = authRepository.createUser(
+                                        firstName = firstName,
+                                        lastName = lastName,
+                                        phone = phone,
+                                        email = registerEmail,
+                                        identifier = registerIdentifier
+                                    )
+                                    registerIsLoading = false
+                                    when (result) {
+                                        CreateUserResult.Success -> {
+                                            loginEmail = registerEmail
+                                            loginIdentifier = registerIdentifier
+                                            loginInfoMessage = "¡Registro exitoso! Ya puedes entrar."
+                                            selectedTab = 0
+                                        }
+                                        CreateUserResult.AlreadyExists ->
+                                            registerErrorMessage = "El usuario ya existe."
+                                        CreateUserResult.InvalidData ->
+                                            registerErrorMessage = "Datos inválidos."
+                                        CreateUserResult.NetworkError ->
+                                            registerErrorMessage = "Error de conexión."
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
-            )
+            }
         }
     }
 }

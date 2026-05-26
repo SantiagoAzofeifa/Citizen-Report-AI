@@ -63,19 +63,19 @@ fun HomeScreen(
         repository.fetchReports()
     }
 
-    var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
         bottomBar = {
             NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
             ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") },
-                    label = { Text("Inicio") }
+                    icon = { Icon(if (selectedTab == 0) Icons.Default.Home else Icons.Default.Home, contentDescription = "Inicio") },
+                    label = { Text("Explorar") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
@@ -84,7 +84,7 @@ fun HomeScreen(
                         onNavigateToMyReports()
                     },
                     icon = { Icon(Icons.AutoMirrored.Filled.ListIcon, contentDescription = "Mis Reportes") },
-                    label = { Text("Mis Reportes") }
+                    label = { Text("Actividad") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
@@ -98,111 +98,93 @@ fun HomeScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
+            LargeFloatingActionButton(
                 onClick = onNavigateToCreateReport,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(50) // Circular
+                shape = RoundedCornerShape(20.dp)
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "Nuevo Reporte", modifier = Modifier.size(32.dp))
+                Icon(Icons.Filled.Add, contentDescription = "Nuevo Reporte", modifier = Modifier.size(36.dp))
             }
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .systemBarsPadding()
         ) {
-            // Cabecera superior
+            // El mapa ocupa todo el fondo
+            ReportsMapComponent(reports = reports)
+
+            // Superposición de UI sobre el mapa
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .align(Alignment.TopCenter)
             ) {
-                Text(
-                    text = "Mapa de Reportes",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                if (userRole == UserRole.ADMIN) {
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .defaultMinSize(minHeight = 56.dp),
-                            placeholder = { Text("Buscar ubicación...") },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
-                            shape = RoundedCornerShape(12.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedBorderColor = Color.Transparent,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                focusedBorderColor = Color.Transparent
-                            )
-                        )
-
-                        IconButton(
-                            onClick = { /* Todo: Filters */ },
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Filtro",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Área del Mapa y la Tarjeta de stats
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clipToBounds()
-            ) {
-                ReportsMapComponent(reports = reports)
-
-                Card(
+                // Barra Superior Estilo Glassmorphism
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 16.dp)
-                        .align(Alignment.TopCenter)
-                        .shadow(8.dp, RoundedCornerShape(12.dp)),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    tonalElevation = 4.dp,
+                    shadowElevation = 8.dp
                 ) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        StatItem(reports.size.toString(), "Total", MaterialTheme.colorScheme.primary)
-                        VerticalDivider(modifier = Modifier.height(40.dp))
-                        StatItem(reports.count { it.status.name == "PENDIENTE" }.toString(), "Pendientes", Color(0xFFF97316))
-                        VerticalDivider(modifier = Modifier.height(40.dp))
-                        StatItem(reports.count { it.status.name == "RESUELTO" }.toString(), "Resueltos", Color(0xFF22C55E))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Citizen Report AI",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Reportes en tiempo real",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        IconButton(
+                            onClick = { repository.fetchReports() },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refrescar", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
                     }
+                }
+
+                // Estadísticas Rápidas (Solo si no hay un reporte seleccionado para no saturar)
+                // Se ocultan cuando se selecciona un marcador (esto se maneja en el componente del mapa o con un estado compartido)
+            }
+
+            // Tarjeta de Resumen en la parte superior (Stats)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 100.dp)
+                    .align(Alignment.TopCenter),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StatItem(reports.size.toString(), "Total", MaterialTheme.colorScheme.primary)
+                    StatItem(reports.count { it.status.name == "PENDIENTE" }.toString(), "Pendientes", Color(0xFFF97316))
+                    StatItem(reports.count { it.status.name == "RESUELTO" }.toString(), "Resueltos", Color(0xFF22C55E))
                 }
             }
         }
