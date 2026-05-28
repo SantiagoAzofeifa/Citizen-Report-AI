@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.citizenreportai.data.model.ReportCategory
+import com.example.citizenreportai.data.remote.PhotoUploader
 import com.example.citizenreportai.data.repository.ReportRepository
 import com.example.citizenreportai.ui.components.AppTextField
 import com.example.citizenreportai.ui.components.CategoryChip
@@ -75,6 +76,7 @@ fun CreateReportScreen(
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showLocationPicker by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -142,18 +144,35 @@ fun CreateReportScreen(
                         .fillMaxWidth()
                         .padding(horizontal = spacing.lg, vertical = spacing.md)
                 ) {
+                    if (uploadError != null) {
+                        Text(
+                            text = uploadError!!,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(bottom = spacing.sm)
+                        )
+                    }
                     PrimaryButton(
-                        text = "Enviar reporte",
+                        text = if (submitting && photoUri != null) "Subiendo foto…" else "Enviar reporte",
                         onClick = {
                             scope.launch {
                                 submitting = true
+                                uploadError = null
+                                val uploadedUrl = photoUri?.let { local ->
+                                    PhotoUploader.upload(context, local)
+                                }
+                                if (photoUri != null && uploadedUrl == null) {
+                                    submitting = false
+                                    uploadError = "No se pudo subir la foto. Revisa tu conexión o vuelve a intentar."
+                                    return@launch
+                                }
                                 repository.addReport(
                                     userId = userId,
                                     category = selectedCategory,
                                     description = description,
                                     latitude = reportLatitude ?: 0.0,
                                     longitude = reportLongitude ?: 0.0,
-                                    photoUrl = photoUri?.toString()
+                                    photoUrl = uploadedUrl
                                 )
                                 onNavigateBack()
                             }

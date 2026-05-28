@@ -13,8 +13,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Assignment
+import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.SubcomposeAsyncImage
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -305,6 +309,7 @@ private fun FilterPill(
 private fun ReportListItem(report: Report, onClick: () -> Unit) {
     val spacing = AppTheme.spacing
     val dateFormat = remember { SimpleDateFormat("d MMM yyyy", Locale("es")) }
+    val photoUrl = report.photos.firstOrNull()?.photoUrl?.takeIf { it.startsWith("http", ignoreCase = true) }
 
     Surface(
         modifier = Modifier
@@ -315,53 +320,101 @@ private fun ReportListItem(report: Report, onClick: () -> Unit) {
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
-        Column(modifier = Modifier.padding(spacing.lg)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+        Row(
+            modifier = Modifier.padding(spacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(spacing.md)
+        ) {
+            ReportThumbnail(photoUrl = photoUrl)
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(spacing.xs)
+                    ) {
+                        CategoryChip(category = report.category)
+                        StatusChip(status = report.status)
+                    }
+                    Icon(
+                        Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                report.content?.description?.takeIf { it.isNotBlank() }?.let { description ->
+                    Spacer(Modifier.height(spacing.sm))
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2
+                    )
+                }
+
+                Spacer(Modifier.height(spacing.sm))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(spacing.sm)
+                    horizontalArrangement = Arrangement.spacedBy(spacing.xs)
                 ) {
-                    CategoryChip(category = report.category)
-                    StatusChip(status = report.status)
+                    Icon(
+                        Icons.Outlined.CalendarToday,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = dateFormat.format(report.dateReported),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                Icon(
-                    Icons.Outlined.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
+        }
+    }
+}
 
-            report.content?.description?.takeIf { it.isNotBlank() }?.let { description ->
-                Spacer(Modifier.height(spacing.md))
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2
-                )
-            }
-
-            Spacer(Modifier.height(spacing.md))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(spacing.xs)
-            ) {
-                Icon(
-                    Icons.Outlined.CalendarToday,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp)
-                )
-                Text(
-                    text = dateFormat.format(report.dateReported),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+@Composable
+private fun ReportThumbnail(photoUrl: String?) {
+    Box(
+        modifier = Modifier
+            .size(72.dp)
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        if (photoUrl != null) {
+            SubcomposeAsyncImage(
+                model = photoUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = {
+                    CircularProgressIndicator(
+                        strokeWidth = 1.5.dp,
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
+                error = {
+                    Icon(
+                        Icons.Outlined.BrokenImage,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            )
+        } else {
+            Icon(
+                Icons.Outlined.Image,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }

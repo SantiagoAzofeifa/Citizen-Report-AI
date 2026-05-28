@@ -17,6 +17,8 @@ android {
         versionName = "1.0"
 
         buildConfigField("String", "API_BASE_URL", "\"https://miau-backend.onrender.com/\"")
+        buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"dl6yqgxjd\"")
+        buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"citizen_report\"")
     }
 
     buildTypes {
