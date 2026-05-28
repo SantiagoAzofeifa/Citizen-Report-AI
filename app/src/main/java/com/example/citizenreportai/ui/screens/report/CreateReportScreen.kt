@@ -5,14 +5,23 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,14 +29,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.citizenreportai.data.model.ReportCategory
 import com.example.citizenreportai.data.repository.ReportRepository
+import com.example.citizenreportai.ui.components.AppTextField
+import com.example.citizenreportai.ui.components.CategoryChip
+import com.example.citizenreportai.ui.components.LocationPreviewMap
 import com.example.citizenreportai.ui.components.OpenStreetMapComponent
+import com.example.citizenreportai.ui.components.PrimaryButton
+import com.example.citizenreportai.ui.components.SecondaryButton
+import com.example.citizenreportai.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -48,247 +64,487 @@ fun CreateReportScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val spacing = AppTheme.spacing
 
     var description by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(ReportCategory.BACHE) }
-    var expanded by remember { mutableStateOf(false) }
-
-    // variables para ubicación
     var reportLatitude by remember { mutableStateOf<Double?>(null) }
     var reportLongitude by remember { mutableStateOf<Double?>(null) }
-
-    // variables para foto
     var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var showLocationPicker by remember { mutableStateOf(false) }
+    var submitting by remember { mutableStateOf(false) }
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
 
-    val scope = rememberCoroutineScope()
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) photoUri = pendingPhotoUri
+        pendingPhotoUri = null
+    }
 
-    // Launcher para solicitar permiso de cámara
+    fun launchCamera() {
+        val imageFile = createImageFile(context)
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            imageFile
+        )
+        pendingPhotoUri = uri
+        takePictureLauncher.launch(uri)
+    }
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasCameraPermission = granted
+        if (granted) launchCamera()
     }
 
-    // Launcher para capturar foto
-    val takePictureLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (!success) {
-            photoUri = null
-        }
+    fun handleTakePhoto() {
+        if (!hasCameraPermission) cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        else launchCamera()
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "Nuevo Reporte",
-                        fontWeight = FontWeight.Bold
+                        text = "Nuevo reporte",
+                        style = MaterialTheme.typography.titleLarge
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+                        Icon(
+                            Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "Atrás",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
+        },
+        bottomBar = {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = spacing.lg, vertical = spacing.md)
+                ) {
+                    PrimaryButton(
+                        text = "Enviar reporte",
+                        onClick = {
+                            scope.launch {
+                                submitting = true
+                                repository.addReport(
+                                    userId = userId,
+                                    category = selectedCategory,
+                                    description = description,
+                                    latitude = reportLatitude ?: 0.0,
+                                    longitude = reportLongitude ?: 0.0,
+                                    photoUrl = photoUri?.toString()
+                                )
+                                onNavigateBack()
+                            }
+                        },
+                        loading = submitting,
+                        enabled = reportLatitude != null,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = spacing.lg)
+                .padding(bottom = spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(spacing.xl)
         ) {
-            // Dropdown de Categoría estilo Material 3
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded }
+            // ── Categoría ────────────────────────────────
+            SectionBlock(
+                title = "¿Qué quieres reportar?",
+                subtitle = "Selecciona la categoría que mejor describe el problema."
             ) {
-                OutlinedTextField(
-                    value = selectedCategory.name,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Categoría del problema") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    modifier = Modifier
-                        .menuAnchor()
-                        .fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                    )
-                )
-                ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    ReportCategory.entries.forEach { category ->
-                        DropdownMenuItem(
-                            text = { Text(category.name) },
-                            onClick = {
-                                selectedCategory = category
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                label = { Text("Descripción del problema (Opcional)") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                )
-            )
-
-            // Vista previa de foto capturada
-            if (photoUri != null) {
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(160.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(12.dp)
-                        )
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm)
                 ) {
-                    AsyncImage(
-                        model = photoUri,
-                        contentDescription = "Foto del reporte",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                text = "Foto agregada",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
+                    ReportCategory.entries.forEach { category ->
+                        CategoryChip(
+                            category = category,
+                            selected = category == selectedCategory,
+                            onClick = { selectedCategory = category }
+                        )
                     }
                 }
             }
 
-            // Mapa de Ubicación con OSM
-            Text(
-                text = "Indique la ubicación exacta en el mapa:",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f) // Para que el mapa ocupe gran parte del espacio
+            // ── Descripción ──────────────────────────────
+            SectionBlock(
+                title = "Descripción (opcional)",
+                subtitle = "Describe el problema con detalle. Cuanta más información, mejor."
             ) {
-                OpenStreetMapComponent(
-                    onLocationDetermined = { lat, lon ->
-                        reportLatitude = lat
-                        reportLongitude = lon
-                    }
+                AppTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = "",
+                    placeholder = "Ej: Hay un bache grande en el carril derecho que está causando daños a los vehículos…",
+                    singleLine = false,
+                    modifier = Modifier.heightIn(min = 120.dp)
                 )
             }
 
-            // Fila de botones finales
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            // ── Ubicación ────────────────────────────────
+            SectionBlock(
+                title = "Ubicación",
+                subtitle = "Pulsa para abrir el mapa y fijar el punto exacto."
             ) {
-                OutlinedButton(
-                    onClick = {
-                        if (!hasCameraPermission) {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        } else {
-                            val imageFile = createImageFile(context)
-                            val uri = FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                imageFile
-                            )
-                            photoUri = uri
-                            takePictureLauncher.launch(uri)
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = if (photoUri != null)
-                        ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    else
-                        ButtonDefaults.outlinedButtonColors()
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = "Foto", modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (photoUri != null) "Cambiar foto" else "Foto")
-                }
-
-                Button(
-                    onClick = {
-                        scope.launch {
-                            repository.addReport(
-                                userId = userId,
-                                category = selectedCategory,
-                                description = description,
-                                latitude = reportLatitude ?: 0.0,
-                                longitude = reportLongitude ?: 0.0,
-                                photoUrl = photoUri?.toString()
-                            )
-                            onNavigateBack()
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = description.isNotBlank() && reportLatitude != null
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar", modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Enviar")
+                if (reportLatitude == null || reportLongitude == null) {
+                    LocationPlaceholder(onClick = { showLocationPicker = true })
+                } else {
+                    SelectedLocationCard(
+                        lat = reportLatitude!!,
+                        lon = reportLongitude!!,
+                        onChange = { showLocationPicker = true }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // ── Foto ─────────────────────────────────────
+            SectionBlock(
+                title = "Foto (opcional)",
+                subtitle = "Una imagen ayuda al equipo a entender el problema."
+            ) {
+                if (photoUri == null) {
+                    PhotoPlaceholder(onTakePhoto = ::handleTakePhoto)
+                } else {
+                    PhotoPreview(uri = photoUri!!, onRetake = ::handleTakePhoto)
+                }
+            }
         }
+    }
+
+    if (showLocationPicker) {
+        LocationPickerDialog(
+            initialLat = reportLatitude,
+            initialLon = reportLongitude,
+            onDismiss = { showLocationPicker = false },
+            onConfirm = { lat, lon ->
+                reportLatitude = lat
+                reportLongitude = lon
+                showLocationPicker = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocationPickerDialog(
+    initialLat: Double?,
+    initialLon: Double?,
+    onDismiss: () -> Unit,
+    onConfirm: (Double, Double) -> Unit
+) {
+    val spacing = AppTheme.spacing
+    var currentLat by remember { mutableStateOf(initialLat) }
+    var currentLon by remember { mutableStateOf(initialLon) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    CenterAlignedTopAppBar(
+                        title = { Text("Selecciona la ubicación", style = MaterialTheme.typography.titleLarge) },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.Outlined.Close, contentDescription = "Cerrar")
+                            }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background
+                        )
+                    )
+                },
+                bottomBar = {
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = spacing.lg, vertical = spacing.md)
+                        ) {
+                            PrimaryButton(
+                                text = "Confirmar ubicación",
+                                onClick = {
+                                    val lat = currentLat
+                                    val lon = currentLon
+                                    if (lat != null && lon != null) onConfirm(lat, lon)
+                                },
+                                enabled = currentLat != null && currentLon != null,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    OpenStreetMapComponent(
+                        modifier = Modifier.fillMaxSize(),
+                        onLocationDetermined = { lat, lon ->
+                            currentLat = lat
+                            currentLon = lon
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocationPlaceholder(onClick: () -> Unit) {
+    val spacing = AppTheme.spacing
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        onClick = onClick
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(Modifier.height(spacing.sm))
+            Text(
+                text = "Seleccionar ubicación",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Pulsa para abrir el mapa",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectedLocationCard(lat: Double, lon: Double, onChange: () -> Unit) {
+    val spacing = AppTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+        ) {
+            LocationPreviewMap(
+                latitude = lat,
+                longitude = lon,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = "Ubicación fijada · %.5f, %.5f".format(lat, lon),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
+        SecondaryButton(
+            text = "Cambiar ubicación",
+            onClick = onChange,
+            leadingIcon = Icons.Outlined.Edit,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun SectionBlock(
+    title: String,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val spacing = AppTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (subtitle != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        content()
+    }
+}
+
+@Composable
+private fun PhotoPlaceholder(onTakePhoto: () -> Unit) {
+    val spacing = AppTheme.spacing
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(160.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        onClick = onTakePhoto
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.PhotoCamera,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(Modifier.height(spacing.sm))
+            Text(
+                text = "Tomar foto",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Pulsa para abrir la cámara",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhotoPreview(uri: Uri, onRetake: () -> Unit) {
+    val spacing = AppTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+        ) {
+            AsyncImage(
+                model = uri,
+                contentDescription = "Foto del reporte",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(spacing.sm),
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(999.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Foto añadida",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+        SecondaryButton(
+            text = "Volver a tomar",
+            onClick = onRetake,
+            leadingIcon = Icons.Outlined.Refresh,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }

@@ -1,6 +1,7 @@
 package com.example.citizenreportai.data.repository
 
 import com.example.citizenreportai.data.model.*
+import com.example.citizenreportai.data.remote.NetworkRetry
 import com.example.citizenreportai.data.remote.RetrofitInstance
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +17,7 @@ class RealReportRepository : ReportRepository {
 
     override suspend fun fetchReports() {
         try {
-            val response = RetrofitInstance.api.getReports()
+            val response = NetworkRetry.withRetry { RetrofitInstance.api.getReports() }
             // Keep locally-added reports that the server doesn't know about yet
             val pendingReports = _reports.value.filter { it.id != null && it.id in pendingLocalIds }
             _reports.value = response + pendingReports
@@ -31,7 +32,7 @@ class RealReportRepository : ReportRepository {
             return _reports.value.find { it.id == id }
         }
         return try {
-            RetrofitInstance.api.getReportById(id)
+            NetworkRetry.withRetry { RetrofitInstance.api.getReportById(id) }
         } catch (e: Exception) {
             e.printStackTrace()
             _reports.value.find { it.id == id }
@@ -78,7 +79,7 @@ class RealReportRepository : ReportRepository {
                     listOf(Photo(id = null, reportId = null, photoUrl = it, createdAt = Date()))
                 } ?: emptyList()
             )
-            val createdReport = RetrofitInstance.api.createReport(newReport)
+            val createdReport = NetworkRetry.withRetry { RetrofitInstance.api.createReport(newReport) }
             // Replace the optimistic entry with the server-confirmed report
             pendingLocalIds.remove(tempId)
             _reports.value = _reports.value.map { if (it.id == tempId) createdReport else it }

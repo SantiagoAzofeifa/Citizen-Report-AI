@@ -3,47 +3,63 @@ package com.example.citizenreportai.ui.screens.home
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.List as ListIcon
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import com.example.citizenreportai.data.model.Report
-import com.example.citizenreportai.data.repository.ReportRepository
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.BitmapDrawable
-import androidx.core.content.ContextCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import com.example.citizenreportai.data.model.Report
 import com.example.citizenreportai.data.model.UserRole
+import com.example.citizenreportai.data.repository.ReportRepository
+import com.example.citizenreportai.ui.components.CategoryChip
+import com.example.citizenreportai.ui.components.StatusChip
+import com.example.citizenreportai.ui.theme.AppTheme
+import com.example.citizenreportai.ui.theme.Success500
+import com.example.citizenreportai.ui.theme.Warning500
 import com.google.android.gms.location.LocationServices
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
@@ -54,166 +70,215 @@ fun HomeScreen(
     onNavigateToCreateReport: () -> Unit,
     onNavigateToMyReports: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    userRole: UserRole?
+    userRole: UserRole?,
+    userFirstName: String?
 ) {
     val reports by repository.reports.collectAsState(initial = emptyList())
+    val spacing = AppTheme.spacing
 
-    // Cargar reportes al iniciar
-    LaunchedEffect(Unit) {
-        repository.fetchReports()
-    }
-
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedTab by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { repository.fetchReports() }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface
-            ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") },
-                    label = { Text("Inicio") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { 
-                        selectedTab = 1
-                        onNavigateToMyReports()
-                    },
-                    icon = { Icon(Icons.AutoMirrored.Filled.ListIcon, contentDescription = "Mis Reportes") },
-                    label = { Text("Mis Reportes") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { 
-                        selectedTab = 2
-                        onNavigateToProfile()
-                    },
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Perfil") },
-                    label = { Text("Perfil") }
-                )
-            }
+            AppBottomBar(
+                selected = 0,
+                onSelectMyReports = onNavigateToMyReports,
+                onSelectProfile = onNavigateToProfile
+            )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = onNavigateToCreateReport,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(50) // Circular
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Nuevo Reporte", modifier = Modifier.size(32.dp))
-            }
+                shape = RoundedCornerShape(16.dp),
+                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                text = { Text("Reportar", style = MaterialTheme.typography.labelLarge) }
+            )
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .systemBarsPadding()
         ) {
-            // Cabecera superior
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Text(
-                    text = "Mapa de Reportes",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+            GreetingHeader(
+                userFirstName = userFirstName,
+                userRole = userRole,
+                onNavigateToProfile = onNavigateToProfile
+            )
 
-                if (userRole == UserRole.ADMIN) {
-                    Spacer(modifier = Modifier.height(12.dp))
+            StatsRow(reports = reports)
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .defaultMinSize(minHeight = 56.dp),
-                            placeholder = { Text("Buscar ubicación...") },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
-                            shape = RoundedCornerShape(12.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedBorderColor = Color.Transparent,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                focusedBorderColor = Color.Transparent
-                            )
-                        )
+            Spacer(Modifier.height(spacing.lg))
 
-                        IconButton(
-                            onClick = { /* Todo: Filters */ },
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Filtro",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Área del Mapa y la Tarjeta de stats
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .padding(horizontal = spacing.lg)
+                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 20.dp))
                     .clipToBounds()
             ) {
                 ReportsMapComponent(reports = reports)
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 16.dp)
-                        .align(Alignment.TopCenter)
-                        .shadow(8.dp, RoundedCornerShape(12.dp)),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        StatItem(reports.size.toString(), "Total", MaterialTheme.colorScheme.primary)
-                        VerticalDivider(modifier = Modifier.height(40.dp))
-                        StatItem(reports.count { it.status.name == "PENDIENTE" }.toString(), "Pendientes", Color(0xFFF97316))
-                        VerticalDivider(modifier = Modifier.height(40.dp))
-                        StatItem(reports.count { it.status.name == "RESUELTO" }.toString(), "Resueltos", Color(0xFF22C55E))
-                    }
-                }
             }
+
+            Spacer(Modifier.height(spacing.md))
         }
     }
 }
 
 @Composable
-fun StatItem(value: String, label: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = color)
-        Text(text = label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun GreetingHeader(
+    userFirstName: String?,
+    userRole: UserRole?,
+    onNavigateToProfile: () -> Unit
+) {
+    val spacing = AppTheme.spacing
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.lg, vertical = spacing.lg),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Hola${userFirstName?.let { ", ${it.trim()}" } ?: ""}",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = roleSubtitle(userRole),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        AvatarButton(
+            initials = (userFirstName?.firstOrNull()?.uppercase() ?: "U"),
+            onClick = onNavigateToProfile
+        )
+    }
+}
+
+private fun roleSubtitle(role: UserRole?) = when (role) {
+    UserRole.ADMIN       -> "Panel de administración"
+    UserRole.FUNCIONARIO -> "Gestión de reportes"
+    UserRole.USER, null  -> "Reporta lo que pasa en tu ciudad"
+}
+
+@Composable
+private fun AvatarButton(initials: String, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        onClick = onClick
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = initials,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatsRow(reports: List<Report>) {
+    val spacing = AppTheme.spacing
+    val total     = reports.size
+    val pending   = reports.count { it.status.name == "PENDIENTE" }
+    val resolved  = reports.count { it.status.name == "RESUELTO" }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.lg),
+        horizontalArrangement = Arrangement.spacedBy(spacing.md)
+    ) {
+        StatTile(value = total.toString(),    label = "Total",      accent = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+        StatTile(value = pending.toString(),  label = "Pendientes", accent = Warning500, modifier = Modifier.weight(1f))
+        StatTile(value = resolved.toString(), label = "Resueltos",  accent = Success500, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun StatTile(value: String, label: String, accent: Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(accent)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppBottomBar(
+    selected: Int,
+    onSelectMyReports: () -> Unit,
+    onSelectProfile: () -> Unit
+) {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
+    ) {
+        val itemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+            indicatorColor = MaterialTheme.colorScheme.primary,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        NavigationBarItem(
+            selected = selected == 0,
+            onClick = { /* already here */ },
+            icon = { Icon(Icons.Outlined.Home, contentDescription = "Inicio") },
+            label = { Text("Inicio", style = MaterialTheme.typography.labelSmall) },
+            colors = itemColors
+        )
+        NavigationBarItem(
+            selected = selected == 1,
+            onClick = onSelectMyReports,
+            icon = { Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Mis reportes") },
+            label = { Text("Reportes", style = MaterialTheme.typography.labelSmall) },
+            colors = itemColors
+        )
+        NavigationBarItem(
+            selected = selected == 2,
+            onClick = onSelectProfile,
+            icon = { Icon(Icons.Outlined.Person, contentDescription = "Perfil") },
+            label = { Text("Perfil", style = MaterialTheme.typography.labelSmall) },
+            colors = itemColors
+        )
     }
 }
 
@@ -254,23 +319,16 @@ fun ReportsMapComponent(reports: List<Report>) {
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     controller.setZoom(17.0)
-
                     if (reports.isEmpty()) {
                         controller.setCenter(GeoPoint(40.4168, -3.7038))
                     }
                 }
-
-                // Si el usuario toca el mapa general, cerramos la tarjeta
-                mapView.setOnClickListener {
-                    selectedReport = null
-                }
-
+                mapView.setOnClickListener { selectedReport = null }
                 mapView
             },
             update = { mapView ->
                 mapView.overlays.clear()
 
-                // Mostrar ubicacion actual si hay permiso
                 if (hasLocationPermission) {
                     val locationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(mapView.context), mapView)
                     locationOverlay.enableMyLocation()
@@ -296,58 +354,40 @@ fun ReportsMapComponent(reports: List<Report>) {
                         }
 
                         val hasRuntimeLocationPermission =
-                            ContextCompat.checkSelfPermission(
-                                mapView.context,
-                                Manifest.permission.ACCESS_FINE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED ||
-                                ContextCompat.checkSelfPermission(
-                                    mapView.context,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
-                                ) == PackageManager.PERMISSION_GRANTED
+                            ContextCompat.checkSelfPermission(mapView.context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                                ContextCompat.checkSelfPermission(mapView.context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
                         if (hasRuntimeLocationPermission) {
-                                try {
-                                    fusedLocationClient.lastLocation
-                                        .addOnSuccessListener { location ->
-                                            if (location != null) {
-                                                maybeCenter(location.latitude, location.longitude)
-                                            } else if (!hasCenteredOnUser) {
-                                                centerFromOverlay()
-                                            }
-                                        }
-                                        .addOnFailureListener {
-                                            if (!hasCenteredOnUser) {
-                                                centerFromOverlay()
-                                            }
-                                        }
-                                } catch (securityException: SecurityException) {
-                                    if (!hasCenteredOnUser) {
-                                        centerFromOverlay()
+                            try {
+                                fusedLocationClient.lastLocation
+                                    .addOnSuccessListener { location ->
+                                        if (location != null) maybeCenter(location.latitude, location.longitude)
+                                        else if (!hasCenteredOnUser) centerFromOverlay()
                                     }
-                                }
+                                    .addOnFailureListener {
+                                        if (!hasCenteredOnUser) centerFromOverlay()
+                                    }
+                            } catch (_: SecurityException) {
+                                if (!hasCenteredOnUser) centerFromOverlay()
+                            }
                         } else {
-                                centerFromOverlay()
+                            centerFromOverlay()
                         }
                     }
                 }
 
-                // Crear un Bitmap en cache para no recrearlo por cada reporte
                 val markerBitmap = Bitmap.createBitmap(70, 90, Bitmap.Config.ARGB_8888).apply {
                     val canvas = Canvas(this)
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-                    // Color principal del marcador (Rojo profesional)
-                    val pinColor = android.graphics.Color.parseColor("#E63946")
+                    val pinColor = android.graphics.Color.parseColor("#111827")
                     val shadowColor = android.graphics.Color.parseColor("#33000000")
 
-                    // Sombra de la punta
                     paint.color = shadowColor
                     canvas.drawOval(25f, 75f, 45f, 85f, paint)
 
-                    // Cuerpo del marcador (Teardrop)
                     paint.color = pinColor
                     val path = Path().apply {
-                        moveTo(35f, 80f) // Punta inferior
+                        moveTo(35f, 80f)
                         cubicTo(35f, 80f, 5f, 45f, 5f, 30f)
                         cubicTo(5f, 10f, 20f, 5f, 35f, 5f)
                         cubicTo(50f, 5f, 65f, 10f, 65f, 30f)
@@ -356,7 +396,6 @@ fun ReportsMapComponent(reports: List<Report>) {
                     }
                     canvas.drawPath(path, paint)
 
-                    // Circulo blanco interior para contraste
                     paint.color = android.graphics.Color.WHITE
                     canvas.drawCircle(35f, 30f, 12f, paint)
                 }
@@ -367,15 +406,11 @@ fun ReportsMapComponent(reports: List<Report>) {
                     val marker = Marker(mapView)
                     marker.position = GeoPoint(report.latitude, report.longitude)
                     marker.icon = customIcon
-                    // Ajustar el ancla para que la punta apunte correctamente a la coordenada
                     marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-
-                    // Al hacer click, mostramos nuestro componente en Jetpack Compose
-                    // y evitamos que Osmdroid muestre su burbuja gris anticuada
                     marker.setOnMarkerClickListener { _, _ ->
                         selectedReport = report
                         mapView.controller.animateTo(GeoPoint(report.latitude, report.longitude))
-                        true // true significa que consumimos el evento
+                        true
                     }
                     mapView.overlays.add(marker)
                 }
@@ -389,7 +424,6 @@ fun ReportsMapComponent(reports: List<Report>) {
             }
         )
 
-        // Tarjeta flotante moderna encima del mapa (Jetpack Compose puro)
         AnimatedVisibility(
             visible = selectedReport != null,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -397,71 +431,52 @@ fun ReportsMapComponent(reports: List<Report>) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(16.dp)
-                .padding(bottom = 32.dp)
         ) {
             selectedReport?.let { report ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                SelectedReportCard(report = report, onClose = { selectedReport = null })
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectedReportCard(report: Report, onClose: () -> Unit) {
+    val spacing = AppTheme.spacing
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        shadowElevation = 6.dp
+    ) {
+        Column(modifier = Modifier.padding(spacing.lg)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = report.category.name,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            IconButton(
-                                onClick = { selectedReport = null },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        report.content?.description?.let { desc ->
-                            Text(
-                                text = desc,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        val statusColor = when (report.status.name) {
-                            "PENDIENTE" -> Color(0xFFF97316)
-                            "EN_REVISION" -> Color(0xFF3B82F6)
-                            "RESUELTO" -> Color(0xFF22C55E)
-                            "RECHAZADO" -> Color(0xFFEF4444)
-                            else -> MaterialTheme.colorScheme.outline
-                        }
-
-                        Surface(
-                            color = statusColor.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = report.status.name,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = statusColor,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                    CategoryChip(category = report.category)
+                    StatusChip(status = report.status)
                 }
+                IconButton(onClick = onClose) {
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = "Cerrar",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            report.content?.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                Spacer(Modifier.height(spacing.sm))
+                Text(
+                    text = desc,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }

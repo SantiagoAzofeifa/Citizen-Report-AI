@@ -1,27 +1,38 @@
 package com.example.citizenreportai.ui.screens.login
 
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AlternateEmail
+import androidx.compose.material.icons.outlined.Badge
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
 import com.example.citizenreportai.data.repository.AuthRepository
 import com.example.citizenreportai.data.repository.CreateUserResult
 import com.example.citizenreportai.data.repository.LoginResult
+import com.example.citizenreportai.ui.components.AppTextField
+import com.example.citizenreportai.ui.components.PrimaryButton
+import com.example.citizenreportai.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 
 @Composable
@@ -46,148 +57,188 @@ fun LoginScreen(
     var registerErrorMessage by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
+    val spacing = AppTheme.spacing
 
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    val buttonScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "loginButtonScale"
-    )
-
-    LaunchedEffect(Unit) {
-        authRepository.warmUp()
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
-        // Logo / Title area
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = spacing.xl)
+                .padding(top = spacing.xxxl, bottom = spacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            BrandHeader()
+
+            Spacer(Modifier.height(spacing.xxl))
+
+            SegmentedTabs(
+                selected = selectedTab,
+                onSelect = {
+                    selectedTab = it
+                    loginErrorMessage = null
+                    registerErrorMessage = null
+                }
+            )
+
+            Spacer(Modifier.height(spacing.xl))
+
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    (fadeIn(tween(220)) togetherWith fadeOut(tween(180)))
+                },
+                label = "authTabContent"
+            ) { tab ->
+                if (tab == 0) {
+                    LoginForm(
+                        email = loginEmail,
+                        onEmailChange = { loginEmail = it; loginErrorMessage = null },
+                        identifier = loginIdentifier,
+                        onIdentifierChange = { loginIdentifier = it; loginErrorMessage = null },
+                        isLoading = loginIsLoading,
+                        errorMessage = loginErrorMessage,
+                        infoMessage = loginInfoMessage,
+                        onSubmit = {
+                            scope.launch {
+                                loginIsLoading = true
+                                loginErrorMessage = null
+                                loginInfoMessage = null
+                                val result = authRepository.login(loginEmail, loginIdentifier)
+                                loginIsLoading = false
+                                when (result) {
+                                    LoginResult.Success -> onLoginSuccess()
+                                    LoginResult.InvalidCredentials ->
+                                        loginErrorMessage = "Credenciales incorrectas. Verifica e intenta de nuevo."
+                                    LoginResult.NetworkError ->
+                                        loginErrorMessage = "No se pudo conectar con el servidor. Intenta en unos segundos."
+                                }
+                            }
+                        }
+                    )
+                } else {
+                    CreateUserForm(
+                        firstName = firstName,
+                        onFirstNameChange = { firstName = it; registerErrorMessage = null },
+                        lastName = lastName,
+                        onLastNameChange = { lastName = it },
+                        phone = phone,
+                        onPhoneChange = { phone = it; registerErrorMessage = null },
+                        email = registerEmail,
+                        onEmailChange = { registerEmail = it; registerErrorMessage = null },
+                        identifier = registerIdentifier,
+                        onIdentifierChange = { registerIdentifier = it; registerErrorMessage = null },
+                        isLoading = registerIsLoading,
+                        errorMessage = registerErrorMessage,
+                        onSubmit = {
+                            scope.launch {
+                                registerIsLoading = true
+                                registerErrorMessage = null
+                                val result = authRepository.createUser(
+                                    firstName = firstName,
+                                    lastName = lastName,
+                                    phone = phone,
+                                    email = registerEmail,
+                                    identifier = registerIdentifier
+                                )
+                                registerIsLoading = false
+                                when (result) {
+                                    CreateUserResult.Success -> {
+                                        loginEmail = registerEmail
+                                        loginIdentifier = registerIdentifier
+                                        loginInfoMessage = "Cuenta creada. Inicia sesión."
+                                        selectedTab = 0
+                                    }
+                                    CreateUserResult.AlreadyExists ->
+                                        registerErrorMessage = "Ya existe una cuenta con esos datos."
+                                    CreateUserResult.InvalidData ->
+                                        registerErrorMessage = "Datos inválidos. Revisa los campos."
+                                    CreateUserResult.NetworkError ->
+                                        registerErrorMessage = "No se pudo crear la cuenta. Intenta nuevamente."
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrandHeader() {
+    val spacing = AppTheme.spacing
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
-            modifier = Modifier.size(80.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            shadowElevation = 8.dp
+            modifier = Modifier.size(64.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.primary
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
                     text = "CR",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.Black
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
+        Spacer(Modifier.height(spacing.lg))
         Text(
-            text = "Citizen Report AI",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.onSurface
+            text = "Citizen Report",
+            style = MaterialTheme.typography.displaySmall,
+            color = MaterialTheme.colorScheme.onBackground
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
+        Spacer(Modifier.height(spacing.xs))
         Text(
-            text = "Reporta y mejora tu ciudad hoy",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = "Reporta y mejora tu ciudad",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
+    }
+}
 
-        Spacer(modifier = Modifier.height(48.dp))
-
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Iniciar sesión") }
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Crear usuario") }
-            )
+@Composable
+private fun SegmentedTabs(selected: Int, onSelect: (Int) -> Unit) {
+    val spacing = AppTheme.spacing
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(modifier = Modifier.padding(4.dp)) {
+            SegmentItem("Iniciar sesión", selected == 0, Modifier.weight(1f)) { onSelect(0) }
+            SegmentItem("Crear cuenta", selected == 1, Modifier.weight(1f)) { onSelect(1) }
         }
+    }
+    Spacer(Modifier.height(spacing.none))
+}
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        when (selectedTab) {
-            0 -> LoginForm(
-                email = loginEmail,
-                onEmailChange = { loginEmail = it },
-                identifier = loginIdentifier,
-                onIdentifierChange = { loginIdentifier = it },
-                isLoading = loginIsLoading,
-                errorMessage = loginErrorMessage,
-                infoMessage = loginInfoMessage,
-                onSubmit = {
-                    scope.launch {
-                        loginIsLoading = true
-                        loginErrorMessage = null
-                        loginInfoMessage = null
-                        val result = authRepository.login(loginEmail, loginIdentifier)
-                        loginIsLoading = false
-                        when (result) {
-                            LoginResult.Success -> onLoginSuccess()
-                            LoginResult.InvalidCredentials -> loginErrorMessage = "Credenciales incorrectas"
-                            LoginResult.NetworkError -> loginErrorMessage =
-                                "No se pudo conectar con el servidor. Intenta de nuevo en unos segundos."
-                        }
-                    }
-                },
-                buttonScale = buttonScale,
-                interactionSource = interactionSource
-            )
-            else -> CreateUserForm(
-                firstName = firstName,
-                onFirstNameChange = { firstName = it },
-                lastName = lastName,
-                onLastNameChange = { lastName = it },
-                phone = phone,
-                onPhoneChange = { phone = it },
-                email = registerEmail,
-                onEmailChange = { registerEmail = it },
-                identifier = registerIdentifier,
-                onIdentifierChange = { registerIdentifier = it },
-                isLoading = registerIsLoading,
-                errorMessage = registerErrorMessage,
-                onSubmit = {
-                    scope.launch {
-                        registerIsLoading = true
-                        registerErrorMessage = null
-                        val result = authRepository.createUser(
-                            firstName = firstName,
-                            lastName = lastName,
-                            phone = phone,
-                            email = registerEmail,
-                            identifier = registerIdentifier
-                        )
-                        registerIsLoading = false
-                        when (result) {
-                            CreateUserResult.Success -> {
-                                loginEmail = registerEmail
-                                loginIdentifier = registerIdentifier
-                                loginInfoMessage = "Usuario creado. Inicia sesión."
-                                selectedTab = 0
-                            }
-                            CreateUserResult.AlreadyExists ->
-                                registerErrorMessage = "El usuario ya existe."
-                            CreateUserResult.InvalidData ->
-                                registerErrorMessage = "Datos inválidos. Revisa los campos."
-                            CreateUserResult.NetworkError ->
-                                registerErrorMessage = "No se pudo crear el usuario. Intenta nuevamente."
-                        }
-                    }
-                }
-            )
-        }
+@Composable
+private fun SegmentItem(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val bg = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(bg)
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = fg
+        )
     }
 }
 
@@ -200,84 +251,38 @@ private fun LoginForm(
     isLoading: Boolean,
     errorMessage: String?,
     infoMessage: String?,
-    onSubmit: () -> Unit,
-    buttonScale: Float,
-    interactionSource: MutableInteractionSource
+    onSubmit: () -> Unit
 ) {
-    OutlinedTextField(
-        value = email,
-        onValueChange = onEmailChange,
-        label = { Text("Correo electrónico") },
-        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+    val spacing = AppTheme.spacing
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AppTextField(
+            value = email,
+            onValueChange = onEmailChange,
+            label = "Correo electrónico",
+            placeholder = "tu@email.com",
+            leadingIcon = Icons.Outlined.AlternateEmail,
+            keyboardType = KeyboardType.Email
         )
-    )
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    OutlinedTextField(
-        value = identifier,
-        onValueChange = onIdentifierChange,
-        label = { Text("Identificador (identifier)") },
-        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        Spacer(Modifier.height(spacing.lg))
+        AppTextField(
+            value = identifier,
+            onValueChange = onIdentifierChange,
+            label = "Identificador",
+            placeholder = "Tu documento o usuario",
+            leadingIcon = Icons.Outlined.Badge,
+            visualTransformation = PasswordVisualTransformation()
         )
-    )
 
-    if (infoMessage != null) {
-        Text(
-            text = infoMessage,
-            color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(top = 16.dp)
+        FeedbackBanner(error = errorMessage, info = infoMessage)
+
+        Spacer(Modifier.height(spacing.xl))
+        PrimaryButton(
+            text = "Iniciar sesión",
+            onClick = onSubmit,
+            loading = isLoading,
+            enabled = email.isNotBlank() && identifier.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
         )
-    }
-
-    if (errorMessage != null) {
-        Text(
-            text = errorMessage,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(top = 16.dp)
-        )
-    }
-
-    Spacer(modifier = Modifier.height(40.dp))
-
-    Button(
-        onClick = onSubmit,
-        interactionSource = interactionSource,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .graphicsLayer {
-                scaleX = buttonScale
-                scaleY = buttonScale
-            },
-        shape = RoundedCornerShape(16.dp),
-        enabled = !isLoading && email.isNotBlank() && identifier.isNotBlank(),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 6.dp,
-            pressedElevation = 2.dp,
-            disabledElevation = 0.dp
-        )
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
-        } else {
-            Text("Iniciar Sesión", fontSize = 18.sp)
-        }
     }
 }
 
@@ -297,125 +302,92 @@ private fun CreateUserForm(
     errorMessage: String?,
     onSubmit: () -> Unit
 ) {
-    OutlinedTextField(
-        value = firstName,
-        onValueChange = onFirstNameChange,
-        label = { Text("Nombre") },
-        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+    val spacing = AppTheme.spacing
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AppTextField(
+            value = firstName,
+            onValueChange = onFirstNameChange,
+            label = "Nombre",
+            placeholder = "Juan",
+            leadingIcon = Icons.Outlined.Person
         )
-    )
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    OutlinedTextField(
-        value = lastName,
-        onValueChange = onLastNameChange,
-        label = { Text("Apellido (opcional)") },
-        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        Spacer(Modifier.height(spacing.lg))
+        AppTextField(
+            value = lastName,
+            onValueChange = onLastNameChange,
+            label = "Apellido (opcional)",
+            placeholder = "Pérez",
+            leadingIcon = Icons.Outlined.Person
         )
-    )
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    OutlinedTextField(
-        value = phone,
-        onValueChange = onPhoneChange,
-        label = { Text("Teléfono") },
-        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        Spacer(Modifier.height(spacing.lg))
+        AppTextField(
+            value = phone,
+            onValueChange = onPhoneChange,
+            label = "Teléfono",
+            placeholder = "3001234567",
+            leadingIcon = Icons.Outlined.Phone,
+            keyboardType = KeyboardType.Phone
         )
-    )
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    OutlinedTextField(
-        value = email,
-        onValueChange = onEmailChange,
-        label = { Text("Correo electrónico") },
-        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        Spacer(Modifier.height(spacing.lg))
+        AppTextField(
+            value = email,
+            onValueChange = onEmailChange,
+            label = "Correo electrónico",
+            placeholder = "tu@email.com",
+            leadingIcon = Icons.Outlined.AlternateEmail,
+            keyboardType = KeyboardType.Email
         )
-    )
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    OutlinedTextField(
-        value = identifier,
-        onValueChange = onIdentifierChange,
-        label = { Text("Identificador (identifier)") },
-        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        Spacer(Modifier.height(spacing.lg))
+        AppTextField(
+            value = identifier,
+            onValueChange = onIdentifierChange,
+            label = "Identificador",
+            placeholder = "Documento o usuario",
+            leadingIcon = Icons.Outlined.Badge,
+            visualTransformation = PasswordVisualTransformation()
         )
-    )
 
-    Spacer(modifier = Modifier.height(8.dp))
+        FeedbackBanner(error = errorMessage, info = null)
 
-    Text(
-        text = "Rol: Usuario",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-
-    if (errorMessage != null) {
+        Spacer(Modifier.height(spacing.xl))
+        PrimaryButton(
+            text = "Crear cuenta",
+            onClick = onSubmit,
+            loading = isLoading,
+            enabled = firstName.isNotBlank() && phone.isNotBlank() &&
+                email.isNotBlank() && identifier.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(spacing.md))
         Text(
-            text = errorMessage,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(top = 16.dp)
+            text = "Al continuar aceptas los términos del servicio.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
         )
     }
+}
 
-    Spacer(modifier = Modifier.height(32.dp))
-
-    Button(
-        onClick = onSubmit,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        shape = RoundedCornerShape(16.dp),
-        enabled = !isLoading &&
-            firstName.isNotBlank() &&
-            phone.isNotBlank() &&
-            email.isNotBlank() &&
-            identifier.isNotBlank(),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 6.dp,
-            pressedElevation = 2.dp,
-            disabledElevation = 0.dp
-        )
+@Composable
+private fun FeedbackBanner(error: String?, info: String?) {
+    val spacing = AppTheme.spacing
+    val (text, bg, fg) = when {
+        error != null -> Triple(error, MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.error)
+        info != null  -> Triple(info,  MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+        else -> return
+    }
+    Spacer(Modifier.height(spacing.lg))
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = bg
     ) {
-        if (isLoading) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
-        } else {
-            Text("Crear usuario", fontSize = 18.sp)
-        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = fg,
+            modifier = Modifier.padding(horizontal = spacing.lg, vertical = spacing.md)
+        )
     }
 }

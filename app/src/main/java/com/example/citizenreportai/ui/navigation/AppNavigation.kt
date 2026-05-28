@@ -89,13 +89,14 @@ fun AppNavigation() {
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
                 },
-                userRole = currentUser?.role
+                userRole = currentUser?.role,
+                userFirstName = currentUser?.firstName
             )
         }
         composable(Screen.CreateReport.route) {
             CreateReportScreen(
                 repository = reportRepository,
-                userId = currentUser?.id ?: "",
+                userId = currentUser?.id?.toString() ?: "",
                 onNavigateBack = {
                     navController.popBackStack()
                 }
@@ -104,7 +105,7 @@ fun AppNavigation() {
         composable(Screen.MyReports.route) {
             MyReportsScreen(
                 repository = reportRepository,
-                userId = currentUser?.id ?: "",
+                userId = currentUser?.id?.toString() ?: "",
                 onNavigateBack = {
                     navController.popBackStack()
                 },

@@ -19,11 +19,27 @@ object RetrofitInstance {
         }
     }
 
+    private fun parseIsoLenient(raw: String): Date? {
+        // Backend may return microseconds (".449974Z") or no fraction at all.
+        // Normalize to milliseconds (3 fractional digits) before parsing.
+        val normalized = run {
+            val dotIdx = raw.indexOf('.')
+            if (dotIdx < 0) {
+                raw.removeSuffix("Z").let { "$it.000Z" }
+            } else {
+                val zIdx = raw.indexOf('Z', dotIdx)
+                val end = if (zIdx >= 0) zIdx else raw.length
+                val fraction = raw.substring(dotIdx + 1, end).padEnd(3, '0').take(3)
+                raw.substring(0, dotIdx) + "." + fraction + "Z"
+            }
+        }
+        return try { getIsoFormat().parse(normalized) } catch (_: Exception) { null }
+    }
+
     private val dateAdapter = object : JsonDeserializer<Date>, JsonSerializer<Date> {
         override fun deserialize(json: JsonElement, typeOfT: java.lang.reflect.Type, context: JsonDeserializationContext): Date {
             return try {
-                val raw = json.asString
-                getIsoFormat().parse(raw) ?: Date()
+                parseIsoLenient(json.asString) ?: Date()
             } catch (e: Exception) {
                 try {
                     val timestamp = json.asLong

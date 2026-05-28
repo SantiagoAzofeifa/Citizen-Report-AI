@@ -9,13 +9,13 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 
 interface ApiService {
-    @GET("users")
+    @GET("api/usuarios")
     suspend fun getUsers(): List<User>
 
-    @GET("users/{id}")
+    @GET("api/usuarios/{id}")
     suspend fun getUserById(@Path("id") id: String): User
 
-    @POST("users")
+    @POST("api/usuarios")
     suspend fun createUser(@Body request: CreateUserRequest): User
 
     @GET("reports")

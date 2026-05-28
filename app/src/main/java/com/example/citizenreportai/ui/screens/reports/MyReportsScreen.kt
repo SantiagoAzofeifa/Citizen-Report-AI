@@ -1,30 +1,38 @@
 package com.example.citizenreportai.ui.screens.reports
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Assignment
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.citizenreportai.data.model.Report
 import com.example.citizenreportai.data.model.ReportStatus
 import com.example.citizenreportai.data.repository.ReportRepository
+import com.example.citizenreportai.ui.components.CategoryChip
+import com.example.citizenreportai.ui.components.EmptyState
+import com.example.citizenreportai.ui.components.LoadingState
+import com.example.citizenreportai.ui.components.PrimaryButton
+import com.example.citizenreportai.ui.components.StatusChip
+import com.example.citizenreportai.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -39,12 +47,17 @@ fun MyReportsScreen(
 ) {
     val allReports by repository.reports.collectAsState()
     val scope = rememberCoroutineScope()
+    val spacing = AppTheme.spacing
 
     var isInitialLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var selectedFilter by remember { mutableStateOf<ReportStatus?>(null) }
 
     val myReports = remember(allReports, userId) {
         allReports.filter { it.userId == userId }
+    }
+    val filteredReports = remember(myReports, selectedFilter) {
+        if (selectedFilter == null) myReports else myReports.filter { it.status == selectedFilter }
     }
 
     val pullToRefreshState = rememberPullToRefreshState()
@@ -77,14 +90,29 @@ fun MyReportsScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text("Mis Reportes", fontWeight = FontWeight.Bold) },
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Mis reportes", style = MaterialTheme.typography.titleLarge)
+                        if (myReports.isNotEmpty()) {
+                            Text(
+                                text = "${myReports.size} en total",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Atrás")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { paddingValues ->
@@ -94,95 +122,83 @@ fun MyReportsScreen(
                 .padding(paddingValues)
                 .nestedScroll(pullToRefreshState.nestedScrollConnection)
         ) {
-            when {
-                isInitialLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (myReports.isNotEmpty()) {
+                    StatusFilterRow(
+                        selected = selectedFilter,
+                        onSelect = { selectedFilter = it },
+                        myReports = myReports
+                    )
+                }
+
+                when {
+                    isInitialLoading -> {
+                        LoadingState(message = "Cargando tus reportes…")
+                    }
+                    errorMessage != null && myReports.isEmpty() -> {
+                        EmptyState(
+                            icon = Icons.AutoMirrored.Outlined.Assignment,
+                            title = "No pudimos cargar tus reportes",
+                            description = errorMessage ?: "Revisa tu conexión e intenta de nuevo.",
+                            modifier = Modifier.fillMaxSize(),
+                            action = {
+                                PrimaryButton(
+                                    text = "Reintentar",
+                                    onClick = {
+                                        scope.launch {
+                                            try {
+                                                isInitialLoading = true
+                                                errorMessage = null
+                                                repository.fetchReports()
+                                            } catch (_: Exception) {
+                                                errorMessage = "No se pudieron cargar los reportes. Intenta nuevamente."
+                                            } finally {
+                                                isInitialLoading = false
+                                            }
+                                        }
+                                    }
+                                )
+                            }
                         )
                     }
-                }
-                errorMessage != null && myReports.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = errorMessage!!,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Button(onClick = {
-                                scope.launch {
-                                    try {
-                                        isInitialLoading = true
-                                        errorMessage = null
-                                        repository.fetchReports()
-                                    } catch (_: Exception) {
-                                        errorMessage = "No se pudieron cargar los reportes. Intenta nuevamente."
-                                    } finally {
-                                        isInitialLoading = false
-                                    }
-                                }
-                            }) {
-                                Text("Reintentar")
-                            }
-                        }
+                    myReports.isEmpty() -> {
+                        EmptyState(
+                            icon = Icons.AutoMirrored.Outlined.Assignment,
+                            title = "Aún no tienes reportes",
+                            description = "Cuando reportes un problema en tu ciudad aparecerá aquí.",
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
-                }
-                myReports.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Assignment,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                "Aún no has realizado reportes",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (errorMessage != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = errorMessage!!,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
+                    filteredReports.isEmpty() -> {
+                        EmptyState(
+                            icon = Icons.AutoMirrored.Outlined.Assignment,
+                            title = "Sin reportes en este estado",
+                            description = "Prueba con otro filtro para ver más resultados.",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                start = spacing.lg,
+                                end = spacing.lg,
+                                top = spacing.sm,
+                                bottom = spacing.xl
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(spacing.md)
+                        ) {
+                            items(filteredReports) { report ->
+                                ReportListItem(
+                                    report = report,
+                                    onClick = { report.id?.let { onReportClick(it) } }
                                 )
                             }
                         }
                     }
                 }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(myReports) { report ->
-                            ReportItem(
-                                report = report,
-                                onClick = { report.id?.let { onReportClick(it) } }
-                            )
-                        }
-                    }
-                }
             }
 
-            // This is the indicator at the top
             PullToRefreshContainer(
                 state = pullToRefreshState,
                 modifier = Modifier.align(Alignment.TopCenter),
@@ -194,7 +210,7 @@ fun MyReportsScreen(
                 Snackbar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(16.dp)
+                        .padding(spacing.lg)
                 ) {
                     Text(text = errorMessage!!)
                 }
@@ -204,97 +220,148 @@ fun MyReportsScreen(
 }
 
 @Composable
-fun ReportItem(report: Report, onClick: () -> Unit) {
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-
-    // Colores más modernos y adaptables
-    val statusColor = when (report.status.name) {
-        "PENDIENTE" -> Color(0xFFF59E0B) // Naranja moderno
-        "EN_REVISION" -> Color(0xFF3B82F6) // Azul vivo
-        "RESUELTO" -> Color(0xFF10B981) // Verde esmeralda
-        "RECHAZADO" -> Color(0xFFEF4444) // Rojo vibrante
-        else -> MaterialTheme.colorScheme.outline
-    }
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        label = "CardScale"
+private fun StatusFilterRow(
+    selected: ReportStatus?,
+    onSelect: (ReportStatus?) -> Unit,
+    myReports: List<Report>
+) {
+    val spacing = AppTheme.spacing
+    val items = listOf(
+        null                            to "Todos",
+        ReportStatus.PENDIENTE          to "Pendientes",
+        ReportStatus.EN_REVISION        to "En revisión",
+        ReportStatus.PROGRAMADO         to "Programados",
+        ReportStatus.RESUELTO           to "Resueltos",
+        ReportStatus.RECHAZADO          to "Rechazados"
     )
-
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null, // Usamos nuestra animación en lugar del ripple default si se desea, o mantenemos el ripple combinando. Aquí lo quitamos para que se note la física.
-                onClick = onClick
-            ),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isPressed) 8.dp else 2.dp
-        ),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = spacing.lg, vertical = spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = report.category.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Surface(
-                    color = statusColor.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp)
+        items.forEach { (status, label) ->
+            val count = if (status == null) myReports.size else myReports.count { it.status == status }
+            FilterPill(
+                label = label,
+                count = count,
+                selected = selected == status,
+                onClick = { onSelect(status) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilterPill(
+    label: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val bg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = bg,
+        border = BorderStroke(1.dp, border),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = fg
+            )
+            if (count > 0) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(
+                            if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
                 ) {
                     Text(
-                        text = report.status.name,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        text = count.toString(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = statusColor,
-                        fontWeight = FontWeight.Bold
+                        color = fg
                     )
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(10.dp))
+@Composable
+private fun ReportListItem(report: Report, onClick: () -> Unit) {
+    val spacing = AppTheme.spacing
+    val dateFormat = remember { SimpleDateFormat("d MMM yyyy", Locale("es")) }
 
-            report.content?.description?.let { description ->
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(modifier = Modifier.padding(spacing.lg)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm)
+                ) {
+                    CategoryChip(category = report.category)
+                    StatusChip(status = report.status)
+                }
+                Icon(
+                    Icons.Outlined.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            report.content?.description?.takeIf { it.isNotBlank() }?.let { description ->
+                Spacer(Modifier.height(spacing.md))
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2
                 )
-                Spacer(modifier = Modifier.height(14.dp))
             }
 
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-                thickness = 1.dp
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = "Reportado el: ${dateFormat.format(report.dateReported)}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                fontWeight = FontWeight.Medium
-            )
+            Spacer(Modifier.height(spacing.md))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.xs)
+            ) {
+                Icon(
+                    Icons.Outlined.CalendarToday,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = dateFormat.format(report.dateReported),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

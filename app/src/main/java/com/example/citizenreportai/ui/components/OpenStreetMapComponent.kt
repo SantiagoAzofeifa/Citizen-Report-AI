@@ -75,12 +75,7 @@ fun OpenStreetMapComponent(
     }
 
     if (hasLocationPermission) {
-        Card(
-            modifier = modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(12.dp)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
+        Box(modifier = modifier.fillMaxSize()) {
             var isMoving by remember { mutableStateOf(false) }
 
             val scale by animateFloatAsState(
@@ -93,14 +88,6 @@ fun OpenStreetMapComponent(
                 targetValue = if (isMoving) (-10).dp else 0.dp,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                 label = "LocationPinOffset"
-            )
-
-            val interactionSource = remember { MutableInteractionSource() }
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val buttonScale by animateFloatAsState(
-                targetValue = if (isPressed) 0.92f else 1f,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                label = "ButtonScale"
             )
 
             Box(modifier = Modifier.fillMaxSize()) {
@@ -288,41 +275,20 @@ fun OpenStreetMapComponent(
                     )
                 }
 
-                Button(
-                    onClick = { /* Acción del botón */ },
-                    interactionSource = interactionSource,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp)
-                        .graphicsLayer {
-                            scaleX = buttonScale
-                            scaleY = buttonScale
-                        }
-                        .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .padding(horizontal = 24.dp, vertical = 12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Text("Enviar Reporte")
-                }
             }
         }
     } else {
-        Card(
-            modifier = modifier.fillMaxSize(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
         ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "Se requiere permiso de ubicación para mostrar el mapa.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(
+                text = "Se requiere permiso de ubicación para mostrar el mapa.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

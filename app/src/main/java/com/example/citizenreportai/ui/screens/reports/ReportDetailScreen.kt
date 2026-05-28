@@ -6,14 +6,19 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.BrokenImage
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,13 +27,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.SubcomposeAsyncImage
 import com.example.citizenreportai.data.model.Report
 import com.example.citizenreportai.data.model.ReportStatus
 import com.example.citizenreportai.data.repository.ReportRepository
+import com.example.citizenreportai.ui.components.CategoryChip
+import com.example.citizenreportai.ui.components.EmptyState
+import com.example.citizenreportai.ui.components.LoadingState
+import com.example.citizenreportai.ui.components.PrimaryButton
+import com.example.citizenreportai.ui.components.StatusChip
+import com.example.citizenreportai.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -56,10 +66,8 @@ fun ReportDetailScreen(
                 isLoading = true
                 errorMessage = null
                 report = repository.fetchReportById(reportId)
-                if (report == null) {
-                    errorMessage = "No se encontró el reporte."
-                }
-            } catch (e: Exception) {
+                if (report == null) errorMessage = "No se encontró el reporte."
+            } catch (_: Exception) {
                 errorMessage = "No se pudo cargar el reporte. Intenta nuevamente."
             } finally {
                 isLoading = false
@@ -68,190 +76,99 @@ fun ReportDetailScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text("Detalle del Reporte", fontWeight = FontWeight.Bold) },
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "Detalle del reporte",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Atrás")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { paddingValues ->
-        when {
-            isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-            errorMessage != null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = errorMessage!!,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Button(onClick = {
-                            scope.launch {
-                                try {
-                                    isLoading = true
-                                    errorMessage = null
-                                    report = repository.fetchReportById(reportId)
-                                    if (report == null) errorMessage = "No se encontró el reporte."
-                                } catch (e: Exception) {
-                                    errorMessage = "No se pudo cargar el reporte. Intenta nuevamente."
-                                } finally {
-                                    isLoading = false
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when {
+                isLoading -> LoadingState(message = "Cargando reporte…")
+                errorMessage != null -> EmptyState(
+                    icon = Icons.Outlined.BrokenImage,
+                    title = "No pudimos cargar el reporte",
+                    description = errorMessage!!,
+                    modifier = Modifier.fillMaxSize(),
+                    action = {
+                        PrimaryButton(
+                            text = "Reintentar",
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+                                        errorMessage = null
+                                        report = repository.fetchReportById(reportId)
+                                        if (report == null) errorMessage = "No se encontró el reporte."
+                                    } catch (_: Exception) {
+                                        errorMessage = "No se pudo cargar el reporte. Intenta nuevamente."
+                                    } finally {
+                                        isLoading = false
+                                    }
                                 }
                             }
-                        }) {
-                            Text("Reintentar")
-                        }
+                        )
                     }
-                }
-            }
-            report != null -> {
-                ReportDetailContent(
-                    report = report!!,
-                    modifier = Modifier.padding(paddingValues)
                 )
+                report != null -> ReportDetailContent(report = report!!)
             }
         }
     }
 }
 
 @Composable
-private fun ReportDetailContent(report: Report, modifier: Modifier = Modifier) {
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
-
-    val statusColor = when (report.status) {
-        ReportStatus.PENDIENTE -> Color(0xFFF97316)
-        ReportStatus.EN_REVISION -> Color(0xFF3B82F6)
-        ReportStatus.RESUELTO -> Color(0xFF22C55E)
-        ReportStatus.RECHAZADO -> Color(0xFFEF4444)
-        else -> MaterialTheme.colorScheme.outline
-    }
-
-    val statusLabel = when (report.status) {
-        ReportStatus.PENDIENTE -> "Pendiente"
-        ReportStatus.EN_REVISION -> "En Revisión"
-        ReportStatus.PROGRAMADO -> "Programado"
-        ReportStatus.RESUELTO -> "Resuelto"
-        ReportStatus.RECHAZADO -> "Rechazado"
-    }
+private fun ReportDetailContent(report: Report) {
+    val spacing = AppTheme.spacing
+    val dateFormat = remember { SimpleDateFormat("d 'de' MMMM, yyyy · HH:mm", Locale("es")) }
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = spacing.lg)
+            .padding(bottom = spacing.xl),
+        verticalArrangement = Arrangement.spacedBy(spacing.xl)
     ) {
-        // Header: Category + Status badge
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = report.category.name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Surface(
-                color = statusColor.copy(alpha = 0.15f),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    text = statusLabel,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = statusColor,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        HorizontalDivider()
-
-        // Date
-        DetailRow(label = "Fecha de reporte", value = dateFormat.format(report.dateReported))
-
-        // Description
-        report.content?.description?.let { description ->
-            if (description.isNotBlank()) {
-                DetailSection(title = "Descripción") {
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-        }
-
-        // Closing comment (only when resolved)
-        if (report.status == ReportStatus.RESUELTO) {
-            report.content?.closingComment?.let { comment ->
-                if (comment.isNotBlank()) {
-                    DetailSection(title = "Comentario de cierre") {
-                        Text(
-                            text = comment,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        }
-
-        // Location
-        DetailSection(title = "Ubicación") {
-            ReportLocationMap(
-                latitude = report.latitude,
-                longitude = report.longitude,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .clip(RoundedCornerShape(12.dp))
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+        // ── Header (chips + fecha) ───────────────────────
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm)
             ) {
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = "Lat: ${"%.6f".format(report.latitude)},  Lon: ${"%.6f".format(report.longitude)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                CategoryChip(category = report.category)
+                StatusChip(status = report.status)
             }
+            Text(
+                text = "Reportado el ${dateFormat.format(report.dateReported)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
-        // Photos
+        // ── Timeline de estado ───────────────────────────
+        StatusTimeline(currentStatus = report.status)
+
+        // ── Foto (si hay) ────────────────────────────────
         if (report.photos.isNotEmpty()) {
-            DetailSection(title = "Fotos (${report.photos.size})") {
+            SectionBlock(title = "Evidencia") {
                 report.photos.forEach { photo ->
                     SubcomposeAsyncImage(
                         model = photo.photoUrl,
@@ -259,34 +176,263 @@ private fun ReportDetailContent(report: Report, modifier: Modifier = Modifier) {
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(220.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .height(240.dp)
+                            .clip(MaterialTheme.shapes.large)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.large),
                         loading = {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                                CircularProgressIndicator(strokeWidth = 2.dp)
                             }
                         },
                         error = {
                             Box(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    Icons.Default.BrokenImage,
-                                    contentDescription = "No se pudo cargar la imagen",
+                                    Icons.Outlined.BrokenImage,
+                                    contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(48.dp)
                                 )
                             }
                         }
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(spacing.sm))
                 }
             }
         }
+
+        // ── Descripción ──────────────────────────────────
+        report.content?.description?.takeIf { it.isNotBlank() }?.let { description ->
+            SectionBlock(title = "Descripción") {
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(spacing.lg)
+                    )
+                }
+            }
+        }
+
+        // ── Comentario de cierre (solo resueltos) ────────
+        if (report.status == ReportStatus.RESUELTO) {
+            report.content?.closingComment?.takeIf { it.isNotBlank() }?.let { comment ->
+                SectionBlock(title = "Resolución") {
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(spacing.lg),
+                            horizontalArrangement = Arrangement.spacedBy(spacing.sm)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = comment,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Ubicación ────────────────────────────────────
+        SectionBlock(title = "Ubicación") {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(MaterialTheme.shapes.large)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.large)
+            ) {
+                ReportLocationMap(
+                    latitude = report.latitude,
+                    longitude = report.longitude,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Spacer(Modifier.height(spacing.sm))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.xs)
+            ) {
+                Icon(
+                    Icons.Outlined.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "%.5f, %.5f".format(report.latitude, report.longitude),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusTimeline(currentStatus: ReportStatus) {
+    val spacing = AppTheme.spacing
+    // Final state can be RESUELTO or RECHAZADO; PROGRAMADO is between EN_REVISION and RESUELTO.
+    val steps = listOf(
+        ReportStatus.PENDIENTE   to "Recibido",
+        ReportStatus.EN_REVISION to "En revisión",
+        ReportStatus.PROGRAMADO  to "Programado",
+        ReportStatus.RESUELTO    to "Resuelto"
+    )
+    val order = listOf(ReportStatus.PENDIENTE, ReportStatus.EN_REVISION, ReportStatus.PROGRAMADO, ReportStatus.RESUELTO)
+    val rejected = currentStatus == ReportStatus.RECHAZADO
+    val currentIdx = order.indexOf(currentStatus).takeIf { it >= 0 } ?: 0
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(modifier = Modifier.padding(spacing.lg)) {
+            Text(
+                text = if (rejected) "Estado del reporte" else "Progreso",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(spacing.md))
+
+            if (rejected) {
+                RejectedState()
+            } else {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    steps.forEachIndexed { idx, (status, label) ->
+                        val isActive = idx <= currentIdx
+                        val isCurrent = idx == currentIdx
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            StepDot(active = isActive, current = isCurrent)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isActive) MaterialTheme.colorScheme.onSurface
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (idx < steps.lastIndex) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(0.5f)
+                                    .height(2.dp)
+                                    .padding(top = 11.dp)
+                                    .background(
+                                        if (idx < currentIdx) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outline
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepDot(active: Boolean, current: Boolean) {
+    val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    Box(
+        modifier = Modifier
+            .size(if (current) 24.dp else 20.dp)
+            .clip(CircleShape)
+            .background(color),
+        contentAlignment = Alignment.Center
+    ) {
+        if (active && !current) {
+            Icon(
+                Icons.Outlined.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+        if (current) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onPrimary)
+            )
+        }
+    }
+}
+
+@Composable
+private fun RejectedState() {
+    val spacing = AppTheme.spacing
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.error),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "!",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onError
+            )
+        }
+        Column {
+            Text(
+                text = "Reporte rechazado",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Este reporte no pudo ser procesado.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionBlock(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val spacing = AppTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        content()
     }
 }
 
@@ -318,13 +464,10 @@ private fun ReportLocationMap(
                 val markerBitmap = Bitmap.createBitmap(70, 90, Bitmap.Config.ARGB_8888).apply {
                     val canvas = Canvas(this)
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-                    val pinColor = android.graphics.Color.parseColor("#E63946")
+                    val pinColor = android.graphics.Color.parseColor("#111827")
                     val shadowColor = android.graphics.Color.parseColor("#33000000")
-
                     paint.color = shadowColor
                     canvas.drawOval(25f, 75f, 45f, 85f, paint)
-
                     paint.color = pinColor
                     val path = Path().apply {
                         moveTo(35f, 80f)
@@ -335,21 +478,17 @@ private fun ReportLocationMap(
                         close()
                     }
                     canvas.drawPath(path, paint)
-
                     paint.color = android.graphics.Color.WHITE
                     canvas.drawCircle(35f, 30f, 12f, paint)
                 }
 
                 val customIcon = BitmapDrawable(ctx.resources, markerBitmap)
-
                 val marker = Marker(this).apply {
                     position = GeoPoint(latitude, longitude)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                     icon = customIcon
-                    title = "Ubicación del reporte"
                 }
                 overlays.add(marker)
-
                 setOnTouchListener { _, _ -> true }
             }
         },
@@ -357,36 +496,4 @@ private fun ReportLocationMap(
             mapView.controller.setCenter(GeoPoint(latitude, longitude))
         }
     )
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-@Composable
-private fun DetailSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold
-        )
-        content()
-    }
 }
