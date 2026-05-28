@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
 import com.example.citizenreportai.data.repository.RealAuthRepository
 import com.example.citizenreportai.data.repository.RealReportRepository
@@ -34,7 +35,8 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
-    val authRepository = remember { RealAuthRepository() }
+    val context = LocalContext.current
+    val authRepository = remember { RealAuthRepository(context) }
     val reportRepository = remember { RealReportRepository() }
     
     val currentUser by authRepository.currentUser.collectAsState()
@@ -90,7 +92,8 @@ fun AppNavigation() {
                     navController.navigate(Screen.Profile.route)
                 },
                 userRole = currentUser?.role,
-                userFirstName = currentUser?.firstName
+                userFirstName = currentUser?.firstName,
+                userId = currentUser?.id?.toString() ?: ""
             )
         }
         composable(Screen.CreateReport.route) {

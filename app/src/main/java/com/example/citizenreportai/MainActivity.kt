@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
 
         // Fire-and-forget warmup so Render wakes up while the UI loads.
         lifecycleScope.launch(Dispatchers.IO) {
-            RealAuthRepository().warmUp()
+            RealAuthRepository(applicationContext).warmUp()
         }
 
         setContent {

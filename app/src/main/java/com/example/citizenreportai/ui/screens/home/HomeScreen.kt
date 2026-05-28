@@ -79,7 +79,8 @@ fun HomeScreen(
     onNavigateToMyReports: () -> Unit,
     onNavigateToProfile: () -> Unit,
     userRole: UserRole?,
-    userFirstName: String?
+    userFirstName: String?,
+    userId: String = ""
 ) {
     val reports by repository.reports.collectAsState(initial = emptyList())
     val spacing = AppTheme.spacing
@@ -117,7 +118,7 @@ fun HomeScreen(
                 onNavigateToProfile = onNavigateToProfile
             )
 
-            StatsRow(reports = reports)
+            StatsRow(reports = reports, userRole = userRole, userId = userId)
 
             Spacer(Modifier.height(spacing.lg))
 
@@ -195,11 +196,12 @@ private fun AvatarButton(initials: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun StatsRow(reports: List<Report>) {
+private fun StatsRow(reports: List<Report>, userRole: UserRole?, userId: String) {
     val spacing = AppTheme.spacing
-    val total     = reports.size
-    val pending   = reports.count { it.status.name == "PENDIENTE" }
-    val resolved  = reports.count { it.status.name == "RESUELTO" }
+    val source    = if (userRole == UserRole.USER) reports.filter { it.userId == userId } else reports
+    val total     = source.size
+    val pending   = source.count { it.status.name == "PENDIENTE" }
+    val resolved  = source.count { it.status.name == "RESUELTO" }
 
     Row(
         modifier = Modifier

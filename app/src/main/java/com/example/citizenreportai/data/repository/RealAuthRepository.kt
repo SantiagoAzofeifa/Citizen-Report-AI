@@ -1,9 +1,11 @@
 package com.example.citizenreportai.data.repository
 
+import android.content.Context
 import com.example.citizenreportai.data.model.CreateUserRequest
 import com.example.citizenreportai.data.model.User
 import com.example.citizenreportai.data.remote.NetworkRetry
 import com.example.citizenreportai.data.remote.RetrofitInstance
+import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,16 +13,38 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withTimeout
 import retrofit2.HttpException
 
-class RealAuthRepository : AuthRepository {
+class RealAuthRepository(context: Context) : AuthRepository {
     private companion object {
         const val LOGIN_REQUEST_TIMEOUT_MILLIS = 20_000L
         const val WARMUP_TIMEOUT_MILLIS = 90_000L
         const val CREATE_USER_TIMEOUT_MILLIS = 20_000L
         const val USER_ROLE_ID = 1
+        const val PREFS_NAME = "auth_prefs"
+        const val KEY_USER = "current_user"
     }
 
-    private val _currentUser = MutableStateFlow<User?>(null)
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val gson = Gson()
+
+    private val _currentUser = MutableStateFlow<User?>(loadSavedUser())
     override val currentUser: StateFlow<User?> = _currentUser
+
+    private fun loadSavedUser(): User? {
+        val json = prefs.getString(KEY_USER, null) ?: return null
+        return try {
+            gson.fromJson(json, User::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun saveUser(user: User) {
+        prefs.edit().putString(KEY_USER, gson.toJson(user)).apply()
+    }
+
+    private fun clearUser() {
+        prefs.edit().remove(KEY_USER).apply()
+    }
 
     override suspend fun login(email: String, identifier: String): LoginResult {
         val normalizedEmail = email.trim()
@@ -38,6 +62,7 @@ class RealAuthRepository : AuthRepository {
             }
             if (user != null) {
                 _currentUser.value = user
+                saveUser(user)
                 LoginResult.Success
             } else {
                 LoginResult.InvalidCredentials
@@ -101,5 +126,6 @@ class RealAuthRepository : AuthRepository {
 
     override fun logout() {
         _currentUser.value = null
+        clearUser()
     }
 }
