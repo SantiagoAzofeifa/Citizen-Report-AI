@@ -24,9 +24,12 @@ import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LocationOff
+import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +46,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.example.citizenreportai.util.LocationUtils
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -285,6 +293,7 @@ private fun AppBottomBar(
 @Composable
 fun ReportsMapComponent(reports: List<Report>) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     LaunchedEffect(Unit) {
@@ -296,6 +305,17 @@ fun ReportsMapComponent(reports: List<Report>) {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         )
+    }
+    var isGpsEnabled by remember { mutableStateOf(LocationUtils.isLocationEnabled(context)) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isGpsEnabled = LocationUtils.isLocationEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -310,6 +330,20 @@ fun ReportsMapComponent(reports: List<Report>) {
 
     var selectedReport by remember { mutableStateOf<Report?>(null) }
     var hasCenteredOnUser by remember { mutableStateOf(false) }
+    var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+
+    fun centerOnUser() {
+        val map = mapViewRef ?: return
+        if (!hasLocationPermission || !isGpsEnabled) return
+        try {
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    map.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+                    hasCenteredOnUser = true
+                }
+            }
+        } catch (_: SecurityException) { /* no-op */ }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
@@ -324,6 +358,7 @@ fun ReportsMapComponent(reports: List<Report>) {
                     }
                 }
                 mapView.setOnClickListener { selectedReport = null }
+                mapViewRef = mapView
                 mapView
             },
             update = { mapView ->
@@ -423,6 +458,61 @@ fun ReportsMapComponent(reports: List<Report>) {
                 mapView.invalidate()
             }
         )
+
+        // Banner discreto cuando GPS está apagado
+        if (hasLocationPermission && !isGpsEnabled) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp)
+                    .padding(horizontal = 16.dp),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.errorContainer,
+                onClick = { LocationUtils.openLocationSettings(context) }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.LocationOff,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Ubicación apagada · toca para activar",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+
+        // Botón "centrar en mí" - top-end para no chocar con la FAB "Reportar"
+        if (hasLocationPermission && isGpsEnabled) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+                    .size(44.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                shadowElevation = 2.dp,
+                onClick = { centerOnUser() }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Outlined.MyLocation,
+                        contentDescription = "Centrar en mi ubicación",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
 
         AnimatedVisibility(
             visible = selectedReport != null,
