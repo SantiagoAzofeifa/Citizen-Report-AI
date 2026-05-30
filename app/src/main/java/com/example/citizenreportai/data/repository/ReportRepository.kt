@@ -2,6 +2,7 @@ package com.example.citizenreportai.data.repository
 
 import com.example.citizenreportai.data.model.Report
 import com.example.citizenreportai.data.model.ReportCategory
+import com.example.citizenreportai.data.model.ReportStatus
 import kotlinx.coroutines.flow.StateFlow
 
 interface ReportRepository {
@@ -16,4 +17,7 @@ interface ReportRepository {
         longitude: Double,
         photoUrl: String?
     )
+
+    /** Actualiza solo el estado de un reporte. Devuelve true si tuvo éxito. */
+    suspend fun updateReportStatus(id: String, newStatus: ReportStatus): Boolean
 }

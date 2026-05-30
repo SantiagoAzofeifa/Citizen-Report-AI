@@ -27,5 +27,6 @@ interface AuthRepository {
         identifier: String
     ): CreateUserResult
     suspend fun warmUp()
+    suspend fun getUsers(): List<User>
     fun logout()
 }

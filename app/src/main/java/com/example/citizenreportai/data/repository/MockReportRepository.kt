@@ -69,4 +69,9 @@ class MockReportRepository : ReportRepository {
         )
         _reports.value = _reports.value + newReport
     }
+
+    override suspend fun updateReportStatus(id: String, newStatus: ReportStatus): Boolean {
+        _reports.value = _reports.value.map { if (it.id == id) it.copy(status = newStatus) else it }
+        return true
+    }
 }

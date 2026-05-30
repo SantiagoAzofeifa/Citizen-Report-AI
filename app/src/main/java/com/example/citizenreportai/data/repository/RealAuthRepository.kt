@@ -124,6 +124,15 @@ class RealAuthRepository(context: Context) : AuthRepository {
         }
     }
 
+    override suspend fun getUsers(): List<User> {
+        return try {
+            NetworkRetry.withRetry { RetrofitInstance.api.getUsers() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     override fun logout() {
         _currentUser.value = null
         clearUser()

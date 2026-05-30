@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.SubcomposeAsyncImage
 import androidx.compose.material3.*
@@ -47,7 +48,9 @@ fun MyReportsScreen(
     repository: ReportRepository,
     userId: String,
     onNavigateBack: () -> Unit,
-    onReportClick: (String) -> Unit
+    onReportClick: (String) -> Unit,
+    canManageAll: Boolean = false,
+    reporterNames: Map<String, String> = emptyMap()
 ) {
     val allReports by repository.reports.collectAsState()
     val scope = rememberCoroutineScope()
@@ -57,8 +60,9 @@ fun MyReportsScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var selectedFilter by remember { mutableStateOf<ReportStatus?>(null) }
 
-    val myReports = remember(allReports, userId) {
-        allReports.filter { it.userId == userId }
+    // El funcionario gestiona todos los reportes; el ciudadano solo ve los suyos.
+    val myReports = remember(allReports, userId, canManageAll) {
+        if (canManageAll) allReports else allReports.filter { it.userId == userId }
     }
     val filteredReports = remember(myReports, selectedFilter) {
         if (selectedFilter == null) myReports else myReports.filter { it.status == selectedFilter }
@@ -99,7 +103,10 @@ fun MyReportsScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Mis reportes", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            text = if (canManageAll) "Gestión de reportes" else "Mis reportes",
+                            style = MaterialTheme.typography.titleLarge
+                        )
                         if (myReports.isNotEmpty()) {
                             Text(
                                 text = "${myReports.size} en total",
@@ -168,8 +175,9 @@ fun MyReportsScreen(
                     myReports.isEmpty() -> {
                         EmptyState(
                             icon = Icons.AutoMirrored.Outlined.Assignment,
-                            title = "Aún no tienes reportes",
-                            description = "Cuando reportes un problema en tu ciudad aparecerá aquí.",
+                            title = if (canManageAll) "No hay reportes" else "Aún no tienes reportes",
+                            description = if (canManageAll) "Cuando los ciudadanos reporten problemas aparecerán aquí."
+                                          else "Cuando reportes un problema en tu ciudad aparecerá aquí.",
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -195,6 +203,7 @@ fun MyReportsScreen(
                             items(filteredReports) { report ->
                                 ReportListItem(
                                     report = report,
+                                    reporterName = if (canManageAll) report.userId?.let { reporterNames[it] } else null,
                                     onClick = { report.id?.let { onReportClick(it) } }
                                 )
                             }
@@ -306,7 +315,7 @@ private fun FilterPill(
 }
 
 @Composable
-private fun ReportListItem(report: Report, onClick: () -> Unit) {
+private fun ReportListItem(report: Report, onClick: () -> Unit, reporterName: String? = null) {
     val spacing = AppTheme.spacing
     val dateFormat = remember { SimpleDateFormat("d MMM yyyy", Locale("es")) }
     val photoUrl = report.photos.firstOrNull()?.photoUrl?.takeIf { it.startsWith("http", ignoreCase = true) }
@@ -354,6 +363,26 @@ private fun ReportListItem(report: Report, onClick: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2
                     )
+                }
+
+                if (reporterName != null) {
+                    Spacer(Modifier.height(spacing.sm))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(spacing.xs)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = reporterName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(spacing.sm))

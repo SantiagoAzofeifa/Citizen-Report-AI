@@ -88,4 +88,19 @@ class RealReportRepository : ReportRepository {
             // Keep the optimistic report so it still shows in MyReports
         }
     }
+
+    override suspend fun updateReportStatus(id: String, newStatus: ReportStatus): Boolean {
+        return try {
+            // El backend espera el nombre del enum como body string, p.ej. "EN_REVISION"
+            val updated = NetworkRetry.withRetry {
+                RetrofitInstance.api.updateReportStatus(id, newStatus.name)
+            }
+            // Reflejar el cambio en el flujo local para que la UI se actualice al instante
+            _reports.value = _reports.value.map { if (it.id == id) updated else it }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }

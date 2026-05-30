@@ -21,7 +21,9 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +47,12 @@ import com.example.citizenreportai.ui.components.EmptyState
 import com.example.citizenreportai.ui.components.LoadingState
 import com.example.citizenreportai.ui.components.PrimaryButton
 import com.example.citizenreportai.ui.components.StatusChip
+import com.example.citizenreportai.ui.theme.Accent600
 import com.example.citizenreportai.ui.theme.AppTheme
+import com.example.citizenreportai.ui.theme.Danger500
+import com.example.citizenreportai.ui.theme.Info500
+import com.example.citizenreportai.ui.theme.Success500
+import com.example.citizenreportai.ui.theme.Warning500
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -60,12 +67,18 @@ import java.util.Locale
 fun ReportDetailScreen(
     repository: ReportRepository,
     reportId: String,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    canManageStatus: Boolean = false,
+    reporterNames: Map<String, String> = emptyMap()
 ) {
     val scope = rememberCoroutineScope()
     var report by remember { mutableStateOf<Report?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showStatusSheet by remember { mutableStateOf(false) }
+    var isUpdatingStatus by remember { mutableStateOf(false) }
 
     LaunchedEffect(reportId) {
         scope.launch {
@@ -84,6 +97,7 @@ fun ReportDetailScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -101,6 +115,24 @@ fun ReportDetailScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
+        },
+        bottomBar = {
+            if (canManageStatus && report != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp
+                ) {
+                    PrimaryButton(
+                        text = "Cambiar estado",
+                        onClick = { showStatusSheet = true },
+                        leadingIcon = Icons.Outlined.Edit,
+                        loading = isUpdatingStatus,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(AppTheme.spacing.lg)
+                    )
+                }
+            }
         }
     ) { paddingValues ->
         Box(
@@ -135,14 +167,113 @@ fun ReportDetailScreen(
                         )
                     }
                 )
-                report != null -> ReportDetailContent(report = report!!)
+                report != null -> ReportDetailContent(
+                    report = report!!,
+                    reporterName = report!!.userId?.let { reporterNames[it] }
+                )
+            }
+        }
+    }
+
+    if (showStatusSheet) {
+        report?.let { current ->
+            StatusChangeSheet(
+                currentStatus = current.status,
+                onDismiss = { showStatusSheet = false },
+                onSelect = { newStatus ->
+                    showStatusSheet = false
+                    if (newStatus != current.status) {
+                        scope.launch {
+                            isUpdatingStatus = true
+                            val ok = repository.updateReportStatus(reportId, newStatus)
+                            isUpdatingStatus = false
+                            if (ok) {
+                                report = current.copy(status = newStatus)
+                                snackbarHostState.showSnackbar("Estado actualizado a ${statusLabel(newStatus)}")
+                            } else {
+                                snackbarHostState.showSnackbar("No se pudo actualizar el estado. Intenta de nuevo.")
+                            }
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+private fun statusLabel(status: ReportStatus) = when (status) {
+    ReportStatus.PENDIENTE   -> "Pendiente"
+    ReportStatus.EN_REVISION -> "En revisión"
+    ReportStatus.PROGRAMADO  -> "Programado"
+    ReportStatus.RESUELTO    -> "Resuelto"
+    ReportStatus.RECHAZADO   -> "Rechazado"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StatusChangeSheet(
+    currentStatus: ReportStatus,
+    onDismiss: () -> Unit,
+    onSelect: (ReportStatus) -> Unit
+) {
+    val spacing = AppTheme.spacing
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = spacing.lg)
+                .padding(bottom = spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(spacing.sm)
+        ) {
+            Text(
+                text = "Actualizar estado",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Selecciona el nuevo estado del reporte.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(spacing.sm))
+            ReportStatus.values().forEach { status ->
+                val selected = status == currentStatus
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = if (selected) MaterialTheme.colorScheme.surfaceVariant
+                            else MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(
+                        1.dp,
+                        if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outline
+                    ),
+                    onClick = { onSelect(status) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(spacing.lg),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        StatusChip(status = status)
+                        if (selected) {
+                            Icon(
+                                Icons.Outlined.Check,
+                                contentDescription = "Estado actual",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ReportDetailContent(report: Report) {
+private fun ReportDetailContent(report: Report, reporterName: String? = null) {
     val spacing = AppTheme.spacing
     val dateFormat = remember { SimpleDateFormat("d 'de' MMMM, yyyy · HH:mm", Locale("es")) }
     var fullscreenPhoto by remember { mutableStateOf<String?>(null) }
@@ -176,6 +307,49 @@ private fun ReportDetailContent(report: Report) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        // ── Ciudadano que reportó ────────────────────────
+        if (reporterName != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                Row(
+                    modifier = Modifier.padding(spacing.lg),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.md)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Reportado por",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = reporterName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
         }
 
         // ── Timeline de estado ───────────────────────────
@@ -322,6 +496,7 @@ private fun StatusTimeline(currentStatus: ReportStatus) {
     val order = listOf(ReportStatus.PENDIENTE, ReportStatus.EN_REVISION, ReportStatus.PROGRAMADO, ReportStatus.RESUELTO)
     val rejected = currentStatus == ReportStatus.RECHAZADO
     val currentIdx = order.indexOf(currentStatus).takeIf { it >= 0 } ?: 0
+    val accent = statusColor(currentStatus)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -348,7 +523,7 @@ private fun StatusTimeline(currentStatus: ReportStatus) {
                             modifier = Modifier.weight(1f),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            StepDot(active = isActive, current = isCurrent)
+                            StepDot(active = isActive, current = isCurrent, accent = accent)
                             Spacer(Modifier.height(6.dp))
                             Text(
                                 text = label,
@@ -364,7 +539,7 @@ private fun StatusTimeline(currentStatus: ReportStatus) {
                                     .height(2.dp)
                                     .padding(top = 11.dp)
                                     .background(
-                                        if (idx < currentIdx) MaterialTheme.colorScheme.primary
+                                        if (idx < currentIdx) accent
                                         else MaterialTheme.colorScheme.outline
                                     )
                             )
@@ -377,8 +552,8 @@ private fun StatusTimeline(currentStatus: ReportStatus) {
 }
 
 @Composable
-private fun StepDot(active: Boolean, current: Boolean) {
-    val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+private fun StepDot(active: Boolean, current: Boolean, accent: Color) {
+    val color = if (active) accent else MaterialTheme.colorScheme.outline
     Box(
         modifier = Modifier
             .size(if (current) 24.dp else 20.dp)
@@ -390,7 +565,7 @@ private fun StepDot(active: Boolean, current: Boolean) {
             Icon(
                 Icons.Outlined.Check,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
+                tint = Color.White,
                 modifier = Modifier.size(12.dp)
             )
         }
@@ -399,10 +574,19 @@ private fun StepDot(active: Boolean, current: Boolean) {
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onPrimary)
+                    .background(Color.White)
             )
         }
     }
+}
+
+/** Color asociado a cada estado, igual que el StatusChip y los pines del mapa. */
+private fun statusColor(status: ReportStatus): Color = when (status) {
+    ReportStatus.PENDIENTE   -> Warning500
+    ReportStatus.EN_REVISION -> Info500
+    ReportStatus.PROGRAMADO  -> Accent600
+    ReportStatus.RESUELTO    -> Success500
+    ReportStatus.RECHAZADO   -> Danger500
 }
 
 @Composable

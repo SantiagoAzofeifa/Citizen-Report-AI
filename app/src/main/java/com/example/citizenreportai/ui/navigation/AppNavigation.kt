@@ -5,13 +5,17 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
+import com.example.citizenreportai.data.model.UserRole
 import com.example.citizenreportai.data.repository.RealAuthRepository
 import com.example.citizenreportai.data.repository.RealReportRepository
 import com.example.citizenreportai.ui.screens.home.HomeScreen
@@ -40,6 +44,22 @@ fun AppNavigation() {
     val reportRepository = remember { RealReportRepository() }
     
     val currentUser by authRepository.currentUser.collectAsState()
+    // Funcionario (rol 3) y admin pueden ver y gestionar todos los reportes
+    val canManageReports = currentUser?.role == UserRole.FUNCIONARIO || currentUser?.role == UserRole.ADMIN
+
+    // Mapa userId -> nombre del ciudadano, para que el funcionario sepa quién reportó
+    var reporterNames by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(canManageReports) {
+        if (canManageReports) {
+            reporterNames = authRepository.getUsers().associate { user ->
+                val fullName = listOfNotNull(
+                    user.firstName.trim().takeIf { it.isNotEmpty() },
+                    user.lastName?.trim()?.takeIf { it.isNotEmpty() }
+                ).joinToString(" ")
+                user.id.toString() to fullName.ifBlank { "Usuario #${user.id}" }
+            }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -91,9 +111,14 @@ fun AppNavigation() {
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
                 },
+                onNavigateToReportDetail = { reportId ->
+                    navController.navigate(Screen.ReportDetail.createRoute(reportId))
+                },
                 userRole = currentUser?.role,
                 userFirstName = currentUser?.firstName,
-                userId = currentUser?.id?.toString() ?: ""
+                userId = currentUser?.id?.toString() ?: "",
+                canCreateReports = !canManageReports,
+                reporterNames = reporterNames
             )
         }
         composable(Screen.CreateReport.route) {
@@ -109,6 +134,8 @@ fun AppNavigation() {
             MyReportsScreen(
                 repository = reportRepository,
                 userId = currentUser?.id?.toString() ?: "",
+                canManageAll = canManageReports,
+                reporterNames = reporterNames,
                 onNavigateBack = {
                     navController.popBackStack()
                 },
@@ -122,6 +149,8 @@ fun AppNavigation() {
             ReportDetailScreen(
                 repository = reportRepository,
                 reportId = reportId,
+                canManageStatus = canManageReports,
+                reporterNames = reporterNames,
                 onNavigateBack = {
                     navController.popBackStack()
                 }

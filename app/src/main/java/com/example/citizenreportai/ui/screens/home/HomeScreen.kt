@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
@@ -55,13 +56,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.example.citizenreportai.data.model.Report
+import com.example.citizenreportai.data.model.ReportStatus
 import com.example.citizenreportai.data.model.UserRole
 import com.example.citizenreportai.data.repository.ReportRepository
 import com.example.citizenreportai.ui.components.CategoryChip
+import com.example.citizenreportai.ui.components.SecondaryButton
 import com.example.citizenreportai.ui.components.StatusChip
 import com.example.citizenreportai.ui.theme.AppTheme
+import com.example.citizenreportai.ui.theme.Accent600
+import com.example.citizenreportai.ui.theme.Danger500
+import com.example.citizenreportai.ui.theme.Info500
 import com.example.citizenreportai.ui.theme.Success500
 import com.example.citizenreportai.ui.theme.Warning500
+import androidx.compose.ui.graphics.toArgb
 import com.google.android.gms.location.LocationServices
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -78,9 +85,12 @@ fun HomeScreen(
     onNavigateToCreateReport: () -> Unit,
     onNavigateToMyReports: () -> Unit,
     onNavigateToProfile: () -> Unit,
+    onNavigateToReportDetail: (String) -> Unit = {},
     userRole: UserRole?,
     userFirstName: String?,
-    userId: String = ""
+    userId: String = "",
+    canCreateReports: Boolean = true,
+    reporterNames: Map<String, String> = emptyMap()
 ) {
     val reports by repository.reports.collectAsState(initial = emptyList())
     val spacing = AppTheme.spacing
@@ -93,18 +103,22 @@ fun HomeScreen(
             AppBottomBar(
                 selected = 0,
                 onSelectMyReports = onNavigateToMyReports,
-                onSelectProfile = onNavigateToProfile
+                onSelectProfile = onNavigateToProfile,
+                reportsLabel = if (canCreateReports) "Reportes" else "Gestión"
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onNavigateToCreateReport,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp),
-                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                text = { Text("Reportar", style = MaterialTheme.typography.labelLarge) }
-            )
+            // Los funcionarios no crean reportes: su rol es administrar estados
+            if (canCreateReports) {
+                ExtendedFloatingActionButton(
+                    onClick = onNavigateToCreateReport,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(16.dp),
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                    text = { Text("Reportar", style = MaterialTheme.typography.labelLarge) }
+                )
+            }
         }
     ) { paddingValues ->
         Column(
@@ -130,7 +144,11 @@ fun HomeScreen(
                     .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 20.dp))
                     .clipToBounds()
             ) {
-                ReportsMapComponent(reports = reports)
+                ReportsMapComponent(
+                    reports = reports,
+                    reporterNames = reporterNames,
+                    onOpenReport = onNavigateToReportDetail
+                )
             }
 
             Spacer(Modifier.height(spacing.md))
@@ -255,7 +273,8 @@ private fun StatTile(value: String, label: String, accent: Color, modifier: Modi
 private fun AppBottomBar(
     selected: Int,
     onSelectMyReports: () -> Unit,
-    onSelectProfile: () -> Unit
+    onSelectProfile: () -> Unit,
+    reportsLabel: String = "Reportes"
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -278,8 +297,8 @@ private fun AppBottomBar(
         NavigationBarItem(
             selected = selected == 1,
             onClick = onSelectMyReports,
-            icon = { Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Mis reportes") },
-            label = { Text("Reportes", style = MaterialTheme.typography.labelSmall) },
+            icon = { Icon(Icons.AutoMirrored.Outlined.List, contentDescription = reportsLabel) },
+            label = { Text(reportsLabel, style = MaterialTheme.typography.labelSmall) },
             colors = itemColors
         )
         NavigationBarItem(
@@ -293,7 +312,11 @@ private fun AppBottomBar(
 }
 
 @Composable
-fun ReportsMapComponent(reports: List<Report>) {
+fun ReportsMapComponent(
+    reports: List<Report>,
+    reporterNames: Map<String, String> = emptyMap(),
+    onOpenReport: (String) -> Unit = {}
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
@@ -345,6 +368,13 @@ fun ReportsMapComponent(reports: List<Report>) {
                 }
             }
         } catch (_: SecurityException) { /* no-op */ }
+    }
+
+    // Un pin por estado, con el mismo color que el StatusChip. Se construyen una sola vez.
+    val statusPinIcons = remember(context) {
+        ReportStatus.entries.associateWith { status ->
+            BitmapDrawable(context.resources, buildStatusPinBitmap(statusPinColor(status).toArgb()))
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -413,36 +443,10 @@ fun ReportsMapComponent(reports: List<Report>) {
                     }
                 }
 
-                val markerBitmap = Bitmap.createBitmap(70, 90, Bitmap.Config.ARGB_8888).apply {
-                    val canvas = Canvas(this)
-                    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-                    val pinColor = android.graphics.Color.parseColor("#111827")
-                    val shadowColor = android.graphics.Color.parseColor("#33000000")
-
-                    paint.color = shadowColor
-                    canvas.drawOval(25f, 75f, 45f, 85f, paint)
-
-                    paint.color = pinColor
-                    val path = Path().apply {
-                        moveTo(35f, 80f)
-                        cubicTo(35f, 80f, 5f, 45f, 5f, 30f)
-                        cubicTo(5f, 10f, 20f, 5f, 35f, 5f)
-                        cubicTo(50f, 5f, 65f, 10f, 65f, 30f)
-                        cubicTo(65f, 45f, 35f, 80f, 35f, 80f)
-                        close()
-                    }
-                    canvas.drawPath(path, paint)
-
-                    paint.color = android.graphics.Color.WHITE
-                    canvas.drawCircle(35f, 30f, 12f, paint)
-                }
-
-                val customIcon = BitmapDrawable(mapView.context.resources, markerBitmap)
-
                 reports.forEach { report ->
                     val marker = Marker(mapView)
                     marker.position = GeoPoint(report.latitude, report.longitude)
-                    marker.icon = customIcon
+                    marker.icon = statusPinIcons[report.status]
                     marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                     marker.setOnMarkerClickListener { _, _ ->
                         selectedReport = report
@@ -525,14 +529,24 @@ fun ReportsMapComponent(reports: List<Report>) {
                 .padding(16.dp)
         ) {
             selectedReport?.let { report ->
-                SelectedReportCard(report = report, onClose = { selectedReport = null })
+                SelectedReportCard(
+                    report = report,
+                    reporterName = report.userId?.let { reporterNames[it] },
+                    onClose = { selectedReport = null },
+                    onOpenDetail = { report.id?.let { onOpenReport(it) } }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun SelectedReportCard(report: Report, onClose: () -> Unit) {
+private fun SelectedReportCard(
+    report: Report,
+    reporterName: String?,
+    onClose: () -> Unit,
+    onOpenDetail: () -> Unit
+) {
     val spacing = AppTheme.spacing
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -562,14 +576,76 @@ private fun SelectedReportCard(report: Report, onClose: () -> Unit) {
                     )
                 }
             }
+            if (reporterName != null) {
+                Spacer(Modifier.height(spacing.sm))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Reportado por $reporterName",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             report.content?.description?.takeIf { it.isNotBlank() }?.let { desc ->
                 Spacer(Modifier.height(spacing.sm))
                 Text(
                     text = desc,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2
                 )
             }
+
+            Spacer(Modifier.height(spacing.md))
+            SecondaryButton(
+                text = "Ver detalle",
+                onClick = onOpenDetail,
+                leadingIcon = Icons.AutoMirrored.Outlined.ArrowForward,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
+
+/** Color del pin del mapa según el estado, igual que el StatusChip. */
+private fun statusPinColor(status: ReportStatus): Color = when (status) {
+    ReportStatus.PENDIENTE   -> Warning500
+    ReportStatus.EN_REVISION -> Info500
+    ReportStatus.PROGRAMADO  -> Accent600
+    ReportStatus.RESUELTO    -> Success500
+    ReportStatus.RECHAZADO   -> Danger500
+}
+
+/** Dibuja el pin del mapa con el color recibido (ARGB). */
+private fun buildStatusPinBitmap(pinColorArgb: Int): Bitmap =
+    Bitmap.createBitmap(70, 90, Bitmap.Config.ARGB_8888).apply {
+        val canvas = Canvas(this)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val shadowColor = android.graphics.Color.parseColor("#33000000")
+
+        paint.color = shadowColor
+        canvas.drawOval(25f, 75f, 45f, 85f, paint)
+
+        paint.color = pinColorArgb
+        val path = Path().apply {
+            moveTo(35f, 80f)
+            cubicTo(35f, 80f, 5f, 45f, 5f, 30f)
+            cubicTo(5f, 10f, 20f, 5f, 35f, 5f)
+            cubicTo(50f, 5f, 65f, 10f, 65f, 30f)
+            cubicTo(65f, 45f, 35f, 80f, 35f, 80f)
+            close()
+        }
+        canvas.drawPath(path, paint)
+
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(35f, 30f, 12f, paint)
+    }

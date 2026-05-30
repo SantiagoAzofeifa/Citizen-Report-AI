@@ -6,6 +6,7 @@ import com.example.citizenreportai.data.model.User
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface ApiService {
@@ -26,4 +27,8 @@ interface ApiService {
 
     @POST("reports")
     suspend fun createReport(@Body report: Report): Report
+
+    // El backend espera el body como un único string del enum, p.ej. "EN_REVISION"
+    @PUT("reports/{id}/estado")
+    suspend fun updateReportStatus(@Path("id") id: String, @Body status: String): Report
 }
