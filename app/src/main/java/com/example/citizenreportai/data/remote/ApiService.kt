@@ -3,7 +3,9 @@ package com.example.citizenreportai.data.remote
 import com.example.citizenreportai.data.model.CreateUserRequest
 import com.example.citizenreportai.data.model.Report
 import com.example.citizenreportai.data.model.User
+import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -18,6 +20,9 @@ interface ApiService {
 
     @POST("api/usuarios")
     suspend fun createUser(@Body request: CreateUserRequest): User
+
+    @DELETE("api/usuarios/{id}")
+    suspend fun deleteUser(@Path("id") id: String): Response<Unit>
 
     @GET("reports")
     suspend fun getReports(): List<Report>

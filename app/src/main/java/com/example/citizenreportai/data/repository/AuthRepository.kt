@@ -16,6 +16,11 @@ sealed class CreateUserResult {
     data object NetworkError : CreateUserResult()
 }
 
+sealed class DeleteUserResult {
+    data object Success : DeleteUserResult()
+    data object NetworkError : DeleteUserResult()
+}
+
 interface AuthRepository {
     val currentUser: StateFlow<User?>
     suspend fun login(email: String, identifier: String): LoginResult
@@ -24,8 +29,10 @@ interface AuthRepository {
         lastName: String?,
         phone: String,
         email: String,
-        identifier: String
+        identifier: String,
+        rolId: Int = 1
     ): CreateUserResult
+    suspend fun deleteUser(id: Long): DeleteUserResult
     suspend fun warmUp()
     suspend fun getUsers(): List<User>
     fun logout()

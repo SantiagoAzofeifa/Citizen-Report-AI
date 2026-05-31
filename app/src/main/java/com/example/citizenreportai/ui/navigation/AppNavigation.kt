@@ -18,6 +18,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.citizenreportai.data.model.UserRole
 import com.example.citizenreportai.data.repository.RealAuthRepository
 import com.example.citizenreportai.data.repository.RealReportRepository
+import com.example.citizenreportai.ui.screens.admin.AdminScreen
 import com.example.citizenreportai.ui.screens.home.HomeScreen
 import com.example.citizenreportai.ui.screens.login.LoginScreen
 import com.example.citizenreportai.ui.screens.profile.ProfileScreen
@@ -100,26 +101,36 @@ fun AppNavigation() {
             )
         }
         composable(Screen.Home.route) {
-            HomeScreen(
-                repository = reportRepository,
-                onNavigateToCreateReport = {
-                    navController.navigate(Screen.CreateReport.route)
-                },
-                onNavigateToMyReports = {
-                    navController.navigate(Screen.MyReports.route)
-                },
-                onNavigateToProfile = {
-                    navController.navigate(Screen.Profile.route)
-                },
-                onNavigateToReportDetail = { reportId ->
-                    navController.navigate(Screen.ReportDetail.createRoute(reportId))
-                },
-                userRole = currentUser?.role,
-                userFirstName = currentUser?.firstName,
-                userId = currentUser?.id?.toString() ?: "",
-                canCreateReports = !canManageReports,
-                reporterNames = reporterNames
-            )
+            // El admin (rol 2) gestiona usuarios; el resto ve el mapa de reportes.
+            if (currentUser?.role == UserRole.ADMIN) {
+                AdminScreen(
+                    authRepository = authRepository,
+                    onNavigateToProfile = {
+                        navController.navigate(Screen.Profile.route)
+                    }
+                )
+            } else {
+                HomeScreen(
+                    repository = reportRepository,
+                    onNavigateToCreateReport = {
+                        navController.navigate(Screen.CreateReport.route)
+                    },
+                    onNavigateToMyReports = {
+                        navController.navigate(Screen.MyReports.route)
+                    },
+                    onNavigateToProfile = {
+                        navController.navigate(Screen.Profile.route)
+                    },
+                    onNavigateToReportDetail = { reportId ->
+                        navController.navigate(Screen.ReportDetail.createRoute(reportId))
+                    },
+                    userRole = currentUser?.role,
+                    userFirstName = currentUser?.firstName,
+                    userId = currentUser?.id?.toString() ?: "",
+                    canCreateReports = !canManageReports,
+                    reporterNames = reporterNames
+                )
+            }
         }
         composable(Screen.CreateReport.route) {
             CreateReportScreen(
