@@ -36,7 +36,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.citizenreportai.data.model.ReportCategory
+import com.example.citizenreportai.data.remote.ModerationResult
 import com.example.citizenreportai.data.remote.PhotoUploader
+import com.example.citizenreportai.data.remote.ReportModerator
 import com.example.citizenreportai.data.repository.ReportRepository
 import com.example.citizenreportai.ui.components.AppTextField
 import com.example.citizenreportai.ui.components.CategoryChip
@@ -76,6 +78,7 @@ fun CreateReportScreen(
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showLocationPicker by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
+    var validating by remember { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf<String?>(null) }
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -153,11 +156,35 @@ fun CreateReportScreen(
                         )
                     }
                     PrimaryButton(
-                        text = if (submitting && photoUri != null) "Subiendo foto…" else "Enviar reporte",
+                        text = when {
+                            validating -> "Validando con IA…"
+                            submitting && photoUri != null -> "Subiendo foto…"
+                            else -> "Enviar reporte"
+                        },
                         onClick = {
                             scope.launch {
-                                submitting = true
                                 uploadError = null
+
+                                // 1) Validación con IA (Gemini) antes de enviar.
+                                validating = true
+                                val moderation = ReportModerator.moderate(
+                                    context = context,
+                                    photoUri = photoUri,
+                                    description = description,
+                                    category = selectedCategory
+                                )
+                                validating = false
+                                if (moderation is ModerationResult.Rejected) {
+                                    uploadError = "Reporte rechazado: ${moderation.reason}"
+                                    return@launch
+                                }
+                                // Si la IA sugiere otra categoría más adecuada, la aplicamos.
+                                if (moderation is ModerationResult.Approved) {
+                                    moderation.suggestedCategory?.let { selectedCategory = it }
+                                }
+
+                                // 2) Subida de foto y creación del reporte.
+                                submitting = true
                                 val uploadedUrl = photoUri?.let { local ->
                                     PhotoUploader.upload(context, local)
                                 }
@@ -177,7 +204,7 @@ fun CreateReportScreen(
                                 onNavigateBack()
                             }
                         },
-                        loading = submitting,
+                        loading = submitting || validating,
                         enabled = reportLatitude != null,
                         modifier = Modifier.fillMaxWidth()
                     )

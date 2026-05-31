@@ -1,9 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.gms.google-services")
 }
+
+// Lee la API key de Gemini desde local.properties (no se sube a git).
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val geminiApiKey: String = localProperties.getProperty("GEMINI_API_KEY") ?: ""
 
 android {
     namespace = "com.example.citizenreportai"
@@ -19,6 +28,7 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"https://miau-backend.onrender.com/\"")
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"dl6yqgxjd\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"citizen_report\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildTypes {
