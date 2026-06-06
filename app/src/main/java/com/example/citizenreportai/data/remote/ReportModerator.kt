@@ -27,7 +27,7 @@ private const val MAX_IMAGE_DIMEN = 1024   // px, lado mayor tras escalar
 private const val JPEG_QUALITY = 80
 
 /** Resultado de la validación de un reporte por la IA. */
-sealed interface ModerationResult {
+sealed interface ModerationResult : java.io.Serializable {
     /**
      * El reporte es válido. [suggestedCategory] puede afinar la categoría elegida.
      * [imageDescription] es una frase breve de lo que la IA ve en la foto (null si no hay foto).

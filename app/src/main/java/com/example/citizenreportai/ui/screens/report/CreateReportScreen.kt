@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,18 +73,21 @@ fun CreateReportScreen(
     val scope = rememberCoroutineScope()
     val spacing = AppTheme.spacing
 
-    var description by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(ReportCategory.BACHE) }
-    var reportLatitude by remember { mutableStateOf<Double?>(null) }
-    var reportLongitude by remember { mutableStateOf<Double?>(null) }
-    var photoUri by remember { mutableStateOf<Uri?>(null) }
-    var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    // Datos del formulario: usamos rememberSaveable para que sobrevivan a cambios
+    // de configuración (p. ej. al rotar la pantalla) y no se pierda lo ya ingresado.
+    var description by rememberSaveable { mutableStateOf("") }
+    var selectedCategory by rememberSaveable { mutableStateOf(ReportCategory.BACHE) }
+    var reportLatitude by rememberSaveable { mutableStateOf<Double?>(null) }
+    var reportLongitude by rememberSaveable { mutableStateOf<Double?>(null) }
+    var photoUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingPhotoUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    // Análisis de la foto con IA (se conserva al rotar para no repetir la llamada).
+    var photoAnalysis by rememberSaveable { mutableStateOf<ModerationResult?>(null) }
+    // Estado transitorio de UI: no necesita persistir entre rotaciones.
     var showLocationPicker by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var validating by remember { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf<String?>(null) }
-    // Análisis de la foto con IA (se dispara automáticamente al tomar la foto).
-    var photoAnalysis by remember { mutableStateOf<ModerationResult?>(null) }
     var analyzingPhoto by remember { mutableStateOf(false) }
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -91,36 +95,33 @@ fun CreateReportScreen(
         )
     }
 
-    // Analiza la foto con la IA: describe lo que ve y decide si es válida.
-    fun analyzePhoto(uri: Uri) {
-        scope.launch {
-            analyzingPhoto = true
-            photoAnalysis = null
-            uploadError = null
-            val result = ReportModerator.moderate(
-                context = context,
-                photoUri = uri,
-                description = description,
-                category = selectedCategory
-            )
-            // Si la IA sugiere una categoría más adecuada, la aplicamos.
-            if (result is ModerationResult.Approved) {
-                result.suggestedCategory?.let { selectedCategory = it }
-            }
-            photoAnalysis = result
-            analyzingPhoto = false
-        }
-    }
-
     val takePictureLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) {
-            val taken = pendingPhotoUri
-            photoUri = taken
-            taken?.let { analyzePhoto(it) }
-        }
+        if (success) photoUri = pendingPhotoUri
         pendingPhotoUri = null
+    }
+
+    // Analiza la foto con la IA cuando hay una nueva sin analizar. Se ejecuta también
+    // tras una rotación, pero el guard evita repetir la llamada si ya hay resultado
+    // (photoAnalysis se conserva con rememberSaveable).
+    LaunchedEffect(photoUri) {
+        val uri = photoUri ?: return@LaunchedEffect
+        if (photoAnalysis != null) return@LaunchedEffect
+        analyzingPhoto = true
+        uploadError = null
+        val result = ReportModerator.moderate(
+            context = context,
+            photoUri = uri,
+            description = description,
+            category = selectedCategory
+        )
+        // Si la IA sugiere una categoría más adecuada, la aplicamos.
+        if (result is ModerationResult.Approved) {
+            result.suggestedCategory?.let { selectedCategory = it }
+        }
+        photoAnalysis = result
+        analyzingPhoto = false
     }
 
     fun launchCamera() {
@@ -130,6 +131,8 @@ fun CreateReportScreen(
             "${context.packageName}.fileprovider",
             imageFile
         )
+        // Limpiamos el análisis previo para que la nueva foto se vuelva a evaluar.
+        photoAnalysis = null
         pendingPhotoUri = uri
         takePictureLauncher.launch(uri)
     }
