@@ -28,11 +28,23 @@ private const val JPEG_QUALITY = 80
 
 /** Resultado de la validación de un reporte por la IA. */
 sealed interface ModerationResult {
-    /** El reporte es válido. [suggestedCategory] puede afinar la categoría elegida. */
-    data class Approved(val suggestedCategory: ReportCategory?) : ModerationResult
+    /**
+     * El reporte es válido. [suggestedCategory] puede afinar la categoría elegida.
+     * [imageDescription] es una frase breve de lo que la IA ve en la foto (null si no hay foto).
+     */
+    data class Approved(
+        val suggestedCategory: ReportCategory?,
+        val imageDescription: String? = null
+    ) : ModerationResult
 
-    /** El reporte no es válido. [reason] es un texto corto para mostrar al usuario. */
-    data class Rejected(val reason: String) : ModerationResult
+    /**
+     * El reporte no es válido. [reason] es un texto corto para mostrar al usuario.
+     * [imageDescription] es una frase breve de lo que la IA ve en la foto (null si no hay foto).
+     */
+    data class Rejected(
+        val reason: String,
+        val imageDescription: String? = null
+    ) : ModerationResult
 
     /**
      * No se pudo evaluar (sin API key, sin red o error). El caller decide qué hacer;
@@ -168,6 +180,10 @@ object ReportModerator {
             Responde SOLO con el JSON pedido. El campo "motivo" debe ser una frase corta
             en español, clara y respetuosa para el ciudadano, explicando por qué se aprueba
             o rechaza (máx. 140 caracteres).
+
+            En "descripcionImagen" describe en una sola frase breve y objetiva qué se ve en
+            la foto (máx. 120 caracteres), en español. Si este reporte NO incluye foto, deja
+            "descripcionImagen" como cadena vacía.
         """.trimIndent()
 
         val parts = JSONArray().apply {
@@ -191,6 +207,7 @@ object ReportModerator {
                 JSONObject()
                     .put("aprobado", JSONObject().put("type", "BOOLEAN"))
                     .put("motivo", JSONObject().put("type", "STRING"))
+                    .put("descripcionImagen", JSONObject().put("type", "STRING"))
                     .put(
                         "categoriaSugerida",
                         JSONObject()
@@ -236,13 +253,14 @@ object ReportModerator {
             val reason = result.optString("motivo").ifBlank {
                 "El reporte no cumple las normas de la comunidad."
             }
+            val imageDescription = result.optString("descripcionImagen").takeIf { it.isNotBlank() }
             if (approved) {
                 val suggested = result.optString("categoriaSugerida")
                     .takeIf { it.isNotBlank() }
                     ?.let { name -> ReportCategory.entries.firstOrNull { it.name == name } }
-                ModerationResult.Approved(suggested)
+                ModerationResult.Approved(suggested, imageDescription)
             } else {
-                ModerationResult.Rejected(reason)
+                ModerationResult.Rejected(reason, imageDescription)
             }
         }.getOrElse {
             Log.e(TAG, "No se pudo parsear el JSON del modelo: $text", it)

@@ -19,9 +19,11 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -80,16 +82,44 @@ fun CreateReportScreen(
     var submitting by remember { mutableStateOf(false) }
     var validating by remember { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf<String?>(null) }
+    // Análisis de la foto con IA (se dispara automáticamente al tomar la foto).
+    var photoAnalysis by remember { mutableStateOf<ModerationResult?>(null) }
+    var analyzingPhoto by remember { mutableStateOf(false) }
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
 
+    // Analiza la foto con la IA: describe lo que ve y decide si es válida.
+    fun analyzePhoto(uri: Uri) {
+        scope.launch {
+            analyzingPhoto = true
+            photoAnalysis = null
+            uploadError = null
+            val result = ReportModerator.moderate(
+                context = context,
+                photoUri = uri,
+                description = description,
+                category = selectedCategory
+            )
+            // Si la IA sugiere una categoría más adecuada, la aplicamos.
+            if (result is ModerationResult.Approved) {
+                result.suggestedCategory?.let { selectedCategory = it }
+            }
+            photoAnalysis = result
+            analyzingPhoto = false
+        }
+    }
+
     val takePictureLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) photoUri = pendingPhotoUri
+        if (success) {
+            val taken = pendingPhotoUri
+            photoUri = taken
+            taken?.let { analyzePhoto(it) }
+        }
         pendingPhotoUri = null
     }
 
@@ -157,6 +187,7 @@ fun CreateReportScreen(
                     }
                     PrimaryButton(
                         text = when {
+                            analyzingPhoto -> "Analizando foto…"
                             validating -> "Validando con IA…"
                             submitting && photoUri != null -> "Subiendo foto…"
                             else -> "Enviar reporte"
@@ -165,22 +196,30 @@ fun CreateReportScreen(
                             scope.launch {
                                 uploadError = null
 
-                                // 1) Validación con IA (Gemini) antes de enviar.
-                                validating = true
-                                val moderation = ReportModerator.moderate(
-                                    context = context,
-                                    photoUri = photoUri,
-                                    description = description,
-                                    category = selectedCategory
-                                )
-                                validating = false
-                                if (moderation is ModerationResult.Rejected) {
-                                    uploadError = "Reporte rechazado: ${moderation.reason}"
+                                // 1) Validación con IA antes de enviar.
+                                // La foto ya se analizó al tomarla: si fue rechazada, no se envía.
+                                val analysis = photoAnalysis
+                                if (photoUri != null && analysis is ModerationResult.Rejected) {
+                                    uploadError = "Foto rechazada: ${analysis.reason}"
                                     return@launch
                                 }
-                                // Si la IA sugiere otra categoría más adecuada, la aplicamos.
-                                if (moderation is ModerationResult.Approved) {
-                                    moderation.suggestedCategory?.let { selectedCategory = it }
+                                // Sin foto: validamos la descripción con la IA en este momento.
+                                if (photoUri == null) {
+                                    validating = true
+                                    val moderation = ReportModerator.moderate(
+                                        context = context,
+                                        photoUri = null,
+                                        description = description,
+                                        category = selectedCategory
+                                    )
+                                    validating = false
+                                    if (moderation is ModerationResult.Rejected) {
+                                        uploadError = "Reporte rechazado: ${moderation.reason}"
+                                        return@launch
+                                    }
+                                    if (moderation is ModerationResult.Approved) {
+                                        moderation.suggestedCategory?.let { selectedCategory = it }
+                                    }
                                 }
 
                                 // 2) Subida de foto y creación del reporte.
@@ -204,8 +243,10 @@ fun CreateReportScreen(
                                 onNavigateBack()
                             }
                         },
-                        loading = submitting || validating,
-                        enabled = reportLatitude != null,
+                        loading = submitting || validating || analyzingPhoto,
+                        enabled = reportLatitude != null &&
+                            !analyzingPhoto &&
+                            photoAnalysis !is ModerationResult.Rejected,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -282,6 +323,7 @@ fun CreateReportScreen(
                     PhotoPlaceholder(onTakePhoto = ::handleTakePhoto)
                 } else {
                     PhotoPreview(uri = photoUri!!, onRetake = ::handleTakePhoto)
+                    PhotoAnalysisCard(analyzing = analyzingPhoto, result = photoAnalysis)
                 }
             }
         }
@@ -592,5 +634,118 @@ private fun PhotoPreview(uri: Uri, onRetake: () -> Unit) {
             leadingIcon = Icons.Outlined.Refresh,
             modifier = Modifier.fillMaxWidth()
         )
+    }
+}
+
+/**
+ * Muestra el resultado del análisis de la foto por la IA: lo que ve en la imagen y
+ * si es válida o no. Mientras analiza muestra un indicador de progreso.
+ */
+@Composable
+private fun PhotoAnalysisCard(analyzing: Boolean, result: ModerationResult?) {
+    val spacing = AppTheme.spacing
+
+    // Estado de carga mientras la IA analiza la foto recién tomada.
+    if (analyzing) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Row(
+                modifier = Modifier.padding(spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Analizando la foto con IA…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
+
+    // Resolvemos colores, icono, título y textos según el resultado.
+    data class CardStyle(
+        val container: androidx.compose.ui.graphics.Color,
+        val onContainer: androidx.compose.ui.graphics.Color,
+        val icon: androidx.compose.ui.graphics.vector.ImageVector,
+        val title: String,
+        val seen: String?,
+        val note: String?
+    )
+
+    val style = when (result) {
+        is ModerationResult.Approved -> CardStyle(
+            container = MaterialTheme.colorScheme.secondaryContainer,
+            onContainer = MaterialTheme.colorScheme.onSecondaryContainer,
+            icon = Icons.Outlined.CheckCircle,
+            title = "Foto válida",
+            seen = result.imageDescription,
+            note = null
+        )
+        is ModerationResult.Rejected -> CardStyle(
+            container = MaterialTheme.colorScheme.errorContainer,
+            onContainer = MaterialTheme.colorScheme.onErrorContainer,
+            icon = Icons.Outlined.Warning,
+            title = "Foto no válida",
+            seen = result.imageDescription,
+            note = result.reason
+        )
+        is ModerationResult.Skipped -> CardStyle(
+            container = MaterialTheme.colorScheme.surfaceVariant,
+            onContainer = MaterialTheme.colorScheme.onSurfaceVariant,
+            icon = Icons.Outlined.Info,
+            title = "No se pudo analizar la foto",
+            seen = null,
+            note = "${result.reason}. Puedes enviar el reporte de todos modos."
+        )
+        null -> return
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = style.container
+    ) {
+        Row(
+            modifier = Modifier.padding(spacing.md),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm)
+        ) {
+            Icon(
+                style.icon,
+                contentDescription = null,
+                tint = style.onContainer,
+                modifier = Modifier.size(18.dp)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = style.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = style.onContainer
+                )
+                if (style.seen != null) {
+                    Text(
+                        text = "La IA ve: ${style.seen}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = style.onContainer
+                    )
+                }
+                if (style.note != null) {
+                    Text(
+                        text = style.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = style.onContainer
+                    )
+                }
+            }
+        }
     }
 }
